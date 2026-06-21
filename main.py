@@ -9,6 +9,7 @@ import threading
 import time
 import ctypes
 import zipfile
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 import tkinter as tk
@@ -18,7 +19,10 @@ from ctypes import wintypes
 
 
 APP_TITLE = "TaikøNauts UNOFFL Launcher"
-APP_DIR = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(sys.executable).resolve().parent
+else:
+    APP_DIR = Path(__file__).resolve().parent
 STATE_FILE = APP_DIR / "launcher_state.json"
 GAME_CONFIG_RELATIVE = Path("Config") / "GameConfig.json"
 SKINS_DIR_NAME = "Skins"
