@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import shutil
 import re
 import subprocess
 import threading
@@ -193,6 +194,8 @@ if os.name == "nt":
     shell32.DragAcceptFiles.restype = None
     shell32.DragQueryFileW.argtypes = [wintypes.HANDLE, wintypes.UINT, wintypes.LPWSTR, wintypes.UINT]
     shell32.DragQueryFileW.restype = wintypes.UINT
+    shell32.DragQueryPoint.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.POINT)]
+    shell32.DragQueryPoint.restype = wintypes.BOOL
     shell32.DragFinish.argtypes = [wintypes.HANDLE]
     shell32.DragFinish.restype = None
 
@@ -276,6 +279,26 @@ def extract_zip_to_songs(exe_path: Path, zip_path: Path) -> Path:
             extracted.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(member, "r") as src, extracted.open("wb") as dst:
                 dst.write(src.read())
+
+    return target_dir
+
+
+def clear_zip_folder_keep_box_def(exe_path: Path) -> Path:
+    game_root = resolve_game_root(exe_path)
+    target_dir = game_root / "Songs" / "zip"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    box_def = target_dir / "box.def"
+    if not box_def.exists():
+        box_def.write_text("#TITLE:解凍した譜面\n", encoding="utf-8", newline="\n")
+
+    for child in target_dir.iterdir():
+        if child.name.lower() == "box.def":
+            continue
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink(missing_ok=True)
 
     return target_dir
 
@@ -551,6 +574,7 @@ class LauncherApp(tk.Tk):
         self.current_root_var = tk.StringVar(value="Game root not selected")
         self.skin_count_var = tk.StringVar(value="0 skins")
         self.drop_hint_var = tk.StringVar(value="Drop a ZIP file here to extract it into Songs\\zip")
+        self.zip_status_var = tk.StringVar(value="ZIP area is ready")
 
         self.skins: list[SkinInfo] = []
         self.skin_map: dict[str, SkinInfo] = {}
@@ -559,6 +583,7 @@ class LauncherApp(tk.Tk):
         self.updater_window: UpdaterWindow | None = None
         self._drop_wndproc_ref = None
         self._drop_old_wndproc = None
+        self.zip_drop_zone = None
 
         self._build_ui()
         self._enable_file_drop()
@@ -596,6 +621,10 @@ class LauncherApp(tk.Tk):
         style.configure("AppSubtitle.TLabel", background=PANEL, foreground=MUTED, font=("Segoe UI", 10))
         style.configure("AppCardTitle.TLabel", background=PANEL, foreground=TEXT, font=("Segoe UI", 11, "bold"))
         style.configure("AppCardText.TLabel", background=PANEL, foreground=MUTED, font=("Segoe UI", 10))
+        style.configure("ZipDropZone.TFrame", background=PANEL_ALT)
+        style.configure("ZipDropZoneTitle.TLabel", background=PANEL_ALT, foreground=TEXT, font=("Segoe UI", 11, "bold"))
+        style.configure("ZipDropZoneText.TLabel", background=PANEL_ALT, foreground=MUTED, font=("Segoe UI", 10))
+        style.configure("ZipDropZoneStatus.TLabel", background=PANEL_ALT, foreground=ACCENT, font=("Segoe UI", 10))
         style.configure("AppAccent.TButton", background=ACCENT, foreground="white", padding=(16, 10))
         style.configure("AppGhost.TButton", background=PANEL_ALT, foreground=TEXT, padding=(16, 10))
         style.map("AppAccent.TButton", background=[("active", "#79c0ff"), ("pressed", "#388bfd")])
@@ -640,6 +669,42 @@ class LauncherApp(tk.Tk):
         ttk.Button(action_row, text="Launch Game", command=self.launch_game).pack(side="left")
         ttk.Button(action_row, text="Launch Updater", command=self.start_updater).pack(side="left", padx=8)
         ttk.Label(action_row, textvariable=self.status_var).pack(side="left", padx=12)
+
+        zip_frame = ttk.LabelFrame(root, text="ZIP Import", padding=10)
+        zip_frame.pack(fill="x", pady=(0, 8))
+
+        self.zip_drop_zone = tk.Frame(
+            zip_frame,
+            bg=PANEL_ALT,
+            highlightthickness=1,
+            highlightbackground=BORDER,
+            highlightcolor=BORDER,
+            bd=0,
+        )
+        self.zip_drop_zone.pack(fill="x")
+
+        zip_inner = tk.Frame(self.zip_drop_zone, bg=PANEL_ALT)
+        zip_inner.pack(fill="x", padx=14, pady=14)
+
+        tk.Label(
+            zip_inner,
+            text="Drop ZIP files here",
+            bg=PANEL_ALT,
+            fg=TEXT,
+            font=("Segoe UI", 11, "bold"),
+        ).pack(anchor="w")
+        tk.Label(
+            zip_inner,
+            text="Only files dropped onto this area will be extracted into Songs\\zip.",
+            bg=PANEL_ALT,
+            fg=MUTED,
+            font=("Segoe UI", 10),
+        ).pack(anchor="w", pady=(4, 0))
+
+        zip_actions = ttk.Frame(zip_inner)
+        zip_actions.pack(fill="x", pady=(10, 0))
+        ttk.Button(zip_actions, text="Clear extracted folder", command=self.clear_extracted_zip_folder).pack(side="left")
+        ttk.Label(zip_actions, textvariable=self.zip_status_var).pack(side="left", padx=12)
 
         skin_frame = ttk.LabelFrame(root, text="Skins", padding=10)
         skin_frame.pack(fill="both", expand=True)
@@ -758,30 +823,82 @@ class LauncherApp(tk.Tk):
         self._drop_wndproc_ref = CFUNCTYPE_WNDPROC(_wndproc)
         user32.SetWindowLongPtrW(hwnd, GWL_WNDPROC, self._drop_wndproc_ref)
 
+    def _widget_client_rect(self, widget) -> tuple[int, int, int, int]:
+        x = 0
+        y = 0
+        width = widget.winfo_width()
+        height = widget.winfo_height()
+        current = widget
+        while True:
+            x += current.winfo_x()
+            y += current.winfo_y()
+            if current.master is self:
+                break
+            current = current.master
+        return x, y, x + width, y + height
+
+    def _point_in_zip_drop_zone(self, x: int, y: int) -> bool:
+        if not self.zip_drop_zone or not self.zip_drop_zone.winfo_exists():
+            return False
+        left, top, right, bottom = self._widget_client_rect(self.zip_drop_zone)
+        return left <= x < right and top <= y < bottom
+
     def _handle_dropfiles(self, hdrop) -> None:
         if os.name != "nt":
             return
 
-        count = shell32.DragQueryFileW(hdrop, 0xFFFFFFFF, None, 0)
-        dropped_paths: list[Path] = []
-        for index in range(count):
-            length = shell32.DragQueryFileW(hdrop, index, None, 0) + 1
-            buffer = ctypes.create_unicode_buffer(length)
-            shell32.DragQueryFileW(hdrop, index, buffer, length)
-            dropped_paths.append(Path(buffer.value))
+        drop_point = wintypes.POINT()
+        inside_zone = bool(shell32.DragQueryPoint(hdrop, ctypes.byref(drop_point)))
+        try:
+            if not inside_zone:
+                self.zip_status_var.set("Drop ZIP files onto the ZIP area")
+                return
+            if not self._point_in_zip_drop_zone(drop_point.x, drop_point.y):
+                self.zip_status_var.set("Drop ZIP files onto the ZIP area")
+                return
 
-        shell32.DragFinish(hdrop)
+            count = shell32.DragQueryFileW(hdrop, 0xFFFFFFFF, None, 0)
+            dropped_paths: list[Path] = []
+            for index in range(count):
+                length = shell32.DragQueryFileW(hdrop, index, None, 0) + 1
+                buffer = ctypes.create_unicode_buffer(length)
+                shell32.DragQueryFileW(hdrop, index, buffer, length)
+                dropped_paths.append(Path(buffer.value))
 
-        for path in dropped_paths:
-            if path.suffix.lower() != ".zip":
-                continue
-            try:
-                exe_path = self.get_exe_path()
-                target = extract_zip_to_songs(exe_path, path)
-                self.skin_message_var.set(f"Extracted {path.name} -> {target}")
-                messagebox.showinfo("Done", f"Extracted:\n{path.name}\n->\n{target}")
-            except Exception as exc:
-                messagebox.showerror("ZIP extract error", f"{path}\n\n{exc}")
+            for path in dropped_paths:
+                if path.suffix.lower() != ".zip":
+                    continue
+                try:
+                    exe_path = self.get_exe_path()
+                    target = extract_zip_to_songs(exe_path, path)
+                    self.skin_message_var.set(f"Extracted {path.name} -> {target}")
+                    self.zip_status_var.set(f"Extracted {path.name}")
+                    messagebox.showinfo("Done", f"Extracted:\n{path.name}\n->\n{target}")
+                except Exception as exc:
+                    messagebox.showerror("ZIP extract error", f"{path}\n\n{exc}")
+        finally:
+            shell32.DragFinish(hdrop)
+
+    def clear_extracted_zip_folder(self) -> None:
+        try:
+            exe_path = self.get_exe_path()
+        except Exception as exc:
+            messagebox.showerror("ZIP folder", str(exc))
+            return
+
+        target_dir = resolve_game_root(exe_path) / "Songs" / "zip"
+        if not messagebox.askyesno(
+            "Confirm cleanup",
+            f"Delete everything in this folder except box.def?\n\n{target_dir}",
+        ):
+            return
+
+        try:
+            target = clear_zip_folder_keep_box_def(exe_path)
+            self.zip_status_var.set(f"Cleared {target}")
+            messagebox.showinfo("Done", f"Cleared extracted folder:\n{target}")
+        except Exception as exc:
+            messagebox.showerror("ZIP folder cleanup error", str(exc))
 
     def select_exe(self) -> None:
         selected = filedialog.askopenfilename(
