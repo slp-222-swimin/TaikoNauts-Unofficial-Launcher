@@ -99,8 +99,15 @@ def load_launcher_state() -> dict:
         return {}
 
 
-def save_launcher_state(exe_path: str) -> None:
-    safe_write_json(STATE_FILE, {"exePath": exe_path})
+def save_launcher_state(exe_path: str, geometry: str | None = None) -> None:
+    state = load_launcher_state()
+    state["exePath"] = exe_path
+    if geometry is not None:
+        state["geometry"] = geometry
+    try:
+        safe_write_json(STATE_FILE, state)
+    except Exception:
+        pass
 
 
 def read_game_config(exe_path: Path) -> dict:
@@ -588,6 +595,7 @@ class LauncherApp(tk.Tk):
         self._build_ui()
         self._enable_file_drop()
         self._load_saved_state()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.withdraw()
         self.after(100, self._drain_events)
 
@@ -800,6 +808,25 @@ class LauncherApp(tk.Tk):
             self.exe_path_var.set(saved_path)
             self.current_root_var.set(f"Game root: {Path(saved_path).resolve().parent}")
             self.refresh_all()
+        
+        geometry = state.get("geometry")
+        if geometry:
+            try:
+                self.geometry(geometry)
+            except Exception:
+                pass
+
+    def save_current_state(self) -> None:
+        exe_path = self.exe_path_var.get().strip()
+        geometry = self.geometry()
+        save_launcher_state(exe_path, geometry)
+
+    def _on_close(self) -> None:
+        try:
+            self.save_current_state()
+        except Exception:
+            pass
+        self.destroy()
 
     def _enable_file_drop(self) -> None:
         if os.name != "nt":
