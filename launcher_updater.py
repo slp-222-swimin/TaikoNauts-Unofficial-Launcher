@@ -59,6 +59,9 @@ def apply_update(manifest_path: Path) -> int:
     payload_root = payload_root.resolve()
     if payload_root.exists():
         for child in payload_root.iterdir():
+            name_lower = child.name.lower()
+            if name_lower == updater_self:
+                continue
             dest = target_root / child.name
             if child.is_dir():
                 shutil.copytree(child, dest, dirs_exist_ok=True)
