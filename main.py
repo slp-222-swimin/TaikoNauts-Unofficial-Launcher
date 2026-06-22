@@ -48,7 +48,7 @@ WARNING = "#d29922"
 ERROR = "#f85149"
 SPLASH_DURATION_MS = 2200
 
-APP_VERSION = "v1.1.0"
+APP_VERSION = "v1.1.1"
 GITHUB_REPO_URL = "https://github.com/slp-222-swimin/TaikoNauts-Unofficial-Launcher"
 GAME_BOOTSTRAP_URL = "https://pub-137e553b50604fb28196265eadbc30a2.r2.dev/bootstrap/TaikoNauts-latest.zip"
 
