@@ -10,6 +10,7 @@ import threading
 import time
 import ctypes
 import zipfile
+import tempfile
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,6 +48,80 @@ WARNING = "#d29922"
 ERROR = "#f85149"
 SPLASH_DURATION_MS = 2200
 
+APP_VERSION = "v1.1.0"
+GITHUB_REPO_URL = "https://github.com/slp-222-swimin/TaikoNauts-Unofficial-Launcher"
+
+
+@dataclass(frozen=True)
+class ReleaseInfo:
+    version: str
+    url: str
+    asset_name: str
+    asset_url: str
+    published_at: str
+
+
+def fetch_latest_release() -> ReleaseInfo | None:
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            "https://api.github.com/repos/slp-222-swimin/TaikoNauts-Unofficial-Launcher/releases/latest",
+            headers={"Accept": "application/vnd.github+json", "User-Agent": "TaikoNautsLauncher"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        assets = data.get("assets") or []
+        asset_name = ""
+        asset_url = ""
+        for a in assets:
+            name: str = a.get("name", "")
+            if name.lower().endswith(".exe") or name.lower().endswith(".zip"):
+                asset_name = name
+                asset_url = a.get("browser_download_url", "")
+                break
+
+        tag = data.get("tag_name", "")
+        return ReleaseInfo(
+            version=tag,
+            url=data.get("html_url", ""),
+            asset_name=asset_name,
+            asset_url=asset_url,
+            published_at=data.get("published_at", ""),
+        )
+    except Exception:
+        return None
+
+
+def is_version_newer(latest: str, current: str) -> bool:
+    import re
+    def parse(v: str) -> tuple[int, ...]:
+        return tuple(int(x) for x in re.sub(r"^v", "", v).split("."))
+    try:
+        return parse(latest) > parse(current)
+    except Exception:
+        return False
+
+
+def download_release_asset(
+    release: ReleaseInfo, dest_dir: Path, progress_cb: object | None = None
+) -> Path:
+    import urllib.request
+    dest_dir = Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    local_path = dest_dir / release.asset_name
+
+    def reporthook(block_count: int, block_size: int, total_size: int) -> None:
+        if progress_cb is not None:
+            downloaded = block_count * block_size
+            progress_cb(downloaded, total_size)
+
+    urllib.request.urlretrieve(release.asset_url, str(local_path), reporthook)
+    return local_path
+
+
+def normalize_version_label(version: str) -> str:
+    return version.lstrip("vV")
 
 @dataclass(frozen=True)
 class SkinInfo:
@@ -99,11 +174,13 @@ def load_launcher_state() -> dict:
         return {}
 
 
-def save_launcher_state(exe_path: str, geometry: str | None = None) -> None:
+def save_launcher_state(exe_path: str, geometry: str | None = None, launcher_version: str = "") -> None:
     state = load_launcher_state()
     state["exePath"] = exe_path
     if geometry is not None:
         state["geometry"] = geometry
+    if launcher_version:
+        state["launcherVersion"] = launcher_version
     try:
         safe_write_json(STATE_FILE, state)
     except Exception:
@@ -290,6 +367,38 @@ def extract_zip_to_songs(exe_path: Path, zip_path: Path) -> Path:
     return target_dir
 
 
+def extract_zip_archive(zip_path, target_dir):
+    from pathlib import Path
+    target_dir = Path(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_root = target_dir.resolve()
+
+    import zipfile
+    with zipfile.ZipFile(zip_path, "r") as archive:
+        for member in archive.infolist():
+            if member.is_dir():
+                (target_dir / member.filename).mkdir(parents=True, exist_ok=True)
+                continue
+            extracted = (target_dir / member.filename).resolve()
+            if target_root not in extracted.parents and extracted != target_root:
+                raise ValueError(f"Unsafe path in zip: {member.filename}")
+            extracted.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member, "r") as src, extracted.open("wb") as dst:
+                dst.write(src.read())
+
+    return target_dir
+
+
+def select_payload_root(extracted_root):
+    from pathlib import Path
+    extracted_root = Path(extracted_root)
+    children = [child for child in extracted_root.iterdir()]
+    dirs = [child for child in children if child.is_dir()]
+    files = [child for child in children if child.is_file()]
+    if len(children) == 1 and len(dirs) == 1 and not files:
+        return dirs[0]
+    return extracted_root
+
 def clear_zip_folder_keep_box_def(exe_path: Path) -> Path:
     game_root = resolve_game_root(exe_path)
     target_dir = game_root / "Songs" / "zip"
@@ -472,6 +581,49 @@ class UpdaterWindow:
         self.input_var.set("")
 
 
+
+
+class UpdateDownloadWindow:
+    def __init__(self, parent: tk.Tk, release: ReleaseInfo) -> None:
+        self.window = tk.Toplevel(parent)
+        self.window.title(f"Downloading {release.version}")
+        self.window.geometry("460x180")
+        self.window.configure(bg=BG)
+        self.window.resizable(False, False)
+        self.window.transient(parent)
+        self.window.grab_set()
+
+        outer = ttk.Frame(self.window, padding=20)
+        outer.pack(fill="both", expand=True)
+
+        ttk.Label(outer, text="Downloading Update", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+        self.status_label = ttk.Label(outer, text="Starting...")
+        self.status_label.pack(anchor="w", pady=(8, 0))
+
+        self.progress_bar = ttk.Progressbar(outer, mode="determinate", length=380)
+        self.progress_bar.pack(fill="x", pady=(16, 0))
+
+        self.size_label = ttk.Label(outer, text="")
+        self.size_label.pack(anchor="w", pady=(4, 0))
+
+    def set_status(self, text: str) -> None:
+        self.status_label.config(text=text)
+
+    def set_progress(self, downloaded: int, total: int) -> None:
+        if total > 0:
+            pct = min(downloaded / total * 100, 100)
+            self.progress_bar["value"] = pct
+            self.size_label.config(
+                text=f"{downloaded / 1024 / 1024:.1f} MB / {total / 1024 / 1024:.1f} MB"
+            )
+        else:
+            self.progress_bar["value"] = 0
+
+    def finish(self, downloaded_path: Path | None = None, error: str | None = None) -> None:
+        self.window.grab_release()
+        self.window.destroy()
+
+
 class SplashScreen:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -591,6 +743,7 @@ class LauncherApp(tk.Tk):
         self._drop_wndproc_ref = None
         self._drop_old_wndproc = None
         self.zip_drop_zone = None
+        self.launcher_version: str = ""
 
         self._build_ui()
         self._enable_file_drop()
@@ -740,6 +893,20 @@ class LauncherApp(tk.Tk):
         self.skin_tree.pack(fill="both", expand=True, pady=(8, 0))
         self.skin_tree.bind("<<TreeviewSelect>>", self._on_skin_select)
 
+        footer = ttk.Frame(root)
+        footer.pack(fill="x", pady=(8, 0))
+        version_text = f"v{normalize_version_label(APP_VERSION)}"
+        version_link = tk.Label(
+            footer,
+            text=version_text,
+            fg=ACCENT,
+            bg=BG,
+            font=("Segoe UI", 9),
+            cursor="hand2",
+        )
+        version_link.pack(side="left")
+        version_link.bind("<Button-1>", lambda _: __import__("webbrowser").open(GITHUB_REPO_URL))
+
     def _queue_log(self, text: str) -> None:
         self.events.put(("log", text, ""))
         options = parse_prompt_options(text)
@@ -809,6 +976,8 @@ class LauncherApp(tk.Tk):
             self.current_root_var.set(f"Game root: {Path(saved_path).resolve().parent}")
             self.refresh_all()
         
+        self.launcher_version = str(state.get("launcherVersion") or "")
+
         geometry = state.get("geometry")
         if geometry:
             try:
@@ -816,10 +985,112 @@ class LauncherApp(tk.Tk):
             except Exception:
                 pass
 
+
+
+    def _show_update_prompt(self, release: ReleaseInfo) -> None:
+        current_version = self.launcher_version or APP_VERSION
+
+        window = tk.Toplevel(self)
+        window.title(f"Update Available: {release.version}")
+        window.geometry("540x280")
+        window.configure(bg=BG)
+        window.resizable(False, False)
+        window.transient(self)
+        window.grab_set()
+
+        outer = ttk.Frame(window, padding=20)
+        outer.pack(fill="both", expand=True)
+
+        ttk.Label(outer, text="Update Available", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+        text = (
+            f"A new version is available: {normalize_version_label(release.version)}\n"
+            f"Your current version: {normalize_version_label(current_version)}\n\n"
+            f"Would you like to download and install the update?"
+        )
+        ttk.Label(outer, text=text, justify="left").pack(anchor="w", pady=(12, 0))
+
+        button_row = ttk.Frame(outer)
+        button_row.pack(fill="x", pady=(24, 0))
+        ttk.Button(
+            button_row, text=f"Download {normalize_version_label(release.version)}",
+            command=lambda: self._download_and_apply_update_release(release, window),
+        ).pack(side="left")
+        ttk.Button(
+            button_row, text="Remind me later",
+            command=window.destroy,
+        ).pack(side="left", padx=8)
+
+    def _download_and_apply_update_release(self, release: ReleaseInfo, prompt_window: tk.Toplevel) -> None:
+        workspace_root = Path(tempfile.mkdtemp(prefix="taikonauts_update_"))
+        window = UpdateDownloadWindow(self, release)
+        result: dict[str, object] = {"path": None, "error": None}
+
+        def worker() -> None:
+            try:
+                def progress(downloaded: int, total: int) -> None:
+                    window.set_progress(downloaded, total)
+
+                window.set_status("Starting download")
+                downloaded_path = download_release_asset(release, workspace_root, progress)
+                result["path"] = downloaded_path
+                self.after(0, lambda: window.finish(downloaded_path=downloaded_path))
+            except Exception as exc:
+                result["error"] = str(exc)
+                self.after(0, lambda: window.finish(error=str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.wait_window(window.window)
+
+        if result["error"]:
+            raise RuntimeError(str(result["error"]))
+        downloaded_path = result["path"]
+        if not isinstance(downloaded_path, Path):
+            raise RuntimeError("Update download did not complete.")
+
+        if downloaded_path.suffix.lower() != ".zip" or not zipfile.is_zipfile(downloaded_path):
+            raise ValueError(f"Update asset is not a ZIP file: {downloaded_path.name}")
+
+        extracted_root = extract_zip_archive(downloaded_path, workspace_root / "extracted")
+        payload_root = select_payload_root(extracted_root)
+        restart_exe = str(Path(sys.executable).resolve()) if getattr(sys, "frozen", False) else ""
+
+        manifest = {
+            "parent_pid": os.getpid(),
+            "payload_root": str(payload_root),
+            "target_root": str(APP_DIR),
+            "restart_exe": restart_exe,
+            "workspace_root": str(workspace_root),
+        }
+        manifest_path = workspace_root / "update_manifest.json"
+        safe_write_json(manifest_path, manifest)
+
+        self.status_var.set(f"Applying update: {downloaded_path.name}")
+
+        prompt_window.destroy()
+
+        try:
+            if getattr(sys, "frozen", False):
+                helper_exe = APP_DIR / "LauncherUpdater.exe"
+                if helper_exe.exists():
+                    cmd = [str(helper_exe), "--apply-update", str(manifest_path)]
+                else:
+                    raise FileNotFoundError(f"Updater not found: {helper_exe}")
+            else:
+                helper_script = APP_DIR / "launcher_updater.py"
+                cmd = [sys.executable, str(helper_script), "--apply-update", str(manifest_path)]
+
+            subprocess.Popen(cmd, cwd=str(APP_DIR))
+        except Exception:
+            shutil.rmtree(workspace_root, ignore_errors=True)
+            raise
+
+        self.save_current_state()
+        self.after(0, self.destroy)
+
     def save_current_state(self) -> None:
         exe_path = self.exe_path_var.get().strip()
         geometry = self.geometry()
-        save_launcher_state(exe_path, geometry)
+        save_launcher_state(exe_path, geometry, APP_VERSION)
 
     def _on_close(self) -> None:
         try:
@@ -1079,7 +1350,17 @@ def main() -> int:
         splash.close()
         app.deiconify()
         app.lift()
+        app.update_idletasks()
         app.focus_force()
+        threading.Thread(
+            target=lambda: _check_update_background(app),
+            daemon=True,
+        ).start()
+
+    def _check_update_background(app: LauncherApp) -> None:
+        release = fetch_latest_release()
+        if release and is_version_newer(release.version, APP_VERSION):
+            app.after(0, lambda: app._show_update_prompt(release))
 
     app.after(SPLASH_DURATION_MS, show_main)
     app.mainloop()
