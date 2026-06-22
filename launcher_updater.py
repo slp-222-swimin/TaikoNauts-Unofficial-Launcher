@@ -98,7 +98,9 @@ def main() -> int:
     if args.apply_update:
         manifest_path = Path(args.apply_update).resolve()
         return apply_update(manifest_path)
-    return 0
+    print("This executable is a helper for TaikoNauts Unofficial Launcher updates.", file=sys.stderr)
+    print("Do not run it directly.", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":
