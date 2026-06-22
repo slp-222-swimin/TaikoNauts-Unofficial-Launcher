@@ -50,6 +50,7 @@ SPLASH_DURATION_MS = 2200
 
 APP_VERSION = "v1.1.0"
 GITHUB_REPO_URL = "https://github.com/slp-222-swimin/TaikoNauts-Unofficial-Launcher"
+GAME_BOOTSTRAP_URL = "https://pub-137e553b50604fb28196265eadbc30a2.r2.dev/bootstrap/TaikoNauts-latest.zip"
 
 
 @dataclass(frozen=True)
@@ -419,12 +420,76 @@ def clear_zip_folder_keep_box_def(exe_path: Path) -> Path:
     return target_dir
 
 
+
+
+class UpdaterConfigWindow:
+    def __init__(self, app: "LauncherApp") -> None:
+        self.app = app
+        self.result: dict[str, bool] | None = None
+        self.window = tk.Toplevel(app)
+        self.window.title("Updater Configuration")
+        self.window.geometry("480x220")
+        self.window.configure(bg=BG)
+        self.window.resizable(False, False)
+        self.window.transient(app)
+        self.window.grab_set()
+
+        outer = ttk.Frame(self.window, padding=20)
+        outer.pack(fill="both", expand=True)
+
+        ttk.Label(outer, text="Updater Configuration", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+        ttk.Label(outer, text="Choose how the updater handles each prompt.").pack(anchor="w", pady=(4, 12))
+
+        self.overwrite_exe = tk.BooleanVar(value=True)
+        frame1 = ttk.Frame(outer)
+        frame1.pack(fill="x", pady=(0, 6))
+        tk.Checkbutton(
+            frame1, variable=self.overwrite_exe, bg=BG, fg=TEXT,
+            selectcolor=PANEL, activebackground=BG, activeforeground=TEXT,
+            highlightthickness=0,
+        ).pack(side="left")
+        ttk.Label(frame1, text='Overwrite existing "TaikoNauts.exe"').pack(side="left", padx=(6, 0))
+
+        self.overwrite_skin = tk.BooleanVar(value=True)
+        frame2 = ttk.Frame(outer)
+        frame2.pack(fill="x", pady=(0, 16))
+        tk.Checkbutton(
+            frame2, variable=self.overwrite_skin, bg=BG, fg=TEXT,
+            selectcolor=PANEL, activebackground=BG, activeforeground=TEXT,
+            highlightthickness=0,
+        ).pack(side="left")
+        ttk.Label(frame2, text='Overwrite "SimpleStyle" skin files').pack(side="left", padx=(6, 0))
+
+        button_row = ttk.Frame(outer)
+        button_row.pack(fill="x")
+        ttk.Button(button_row, text="Start Updater", command=self._confirm).pack(side="left")
+        ttk.Button(button_row, text="Cancel", command=self._cancel).pack(side="left", padx=8)
+
+    def _confirm(self) -> None:
+        self.result = {
+            "overwrite_exe": self.overwrite_exe.get(),
+            "overwrite_skin": self.overwrite_skin.get(),
+        }
+        self.window.grab_release()
+        self.window.destroy()
+
+    def _cancel(self) -> None:
+        self.result = None
+        self.window.grab_release()
+        self.window.destroy()
+
+    def show(self) -> dict[str, bool] | None:
+        self.app.wait_window(self.window)
+        return self.result
+
+
 class UpdaterSession:
-    def __init__(self, exe_path: Path, on_log, on_state, on_exit) -> None:
+    def __init__(self, exe_path: Path, on_log, on_state, on_exit, config: dict | None = None) -> None:
         self.exe_path = exe_path
         self.on_log = on_log
         self.on_state = on_state
         self.on_exit = on_exit
+        self.config = config or {}
         self.process: subprocess.Popen[str] | None = None
         self._alive = False
         self._stop_requested = False
@@ -464,7 +529,9 @@ class UpdaterSession:
         for line in stdout:
             if not self._alive:
                 break
-            self.on_log(line.rstrip("\n"))
+            stripped = line.rstrip("\n")
+            self.on_log(stripped)
+            self._auto_answer(stripped)
 
         return_code = self.process.wait()
         self.on_log(f"[process exited] code={return_code}")
@@ -472,6 +539,24 @@ class UpdaterSession:
         self.on_state(False)
         if self.on_exit:
             self.on_exit(return_code, self.process.pid if self.process else -1, self._stop_requested)
+
+    def _auto_answer(self, line: str) -> None:
+        import re
+        text = re.sub(r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] ", "", line).strip()
+        if not text.endswith("(y/n)"):
+            return
+        lower = text.lower()
+        if "executable file" in lower or "taikonauts.exe" in lower:
+            answer = "y" if self.config.get("overwrite_exe", True) else "n"
+        elif "overwrite" in lower and ("simplestyle" in lower or "skin" in lower):
+            answer = "y" if self.config.get("overwrite_skin", True) else "n"
+        else:
+            answer = "y"
+        try:
+            self.send(answer)
+            self.on_log(f"> {answer}")
+        except Exception:
+            pass
 
     def send(self, text: str) -> None:
         if not self.process or self.process.poll() is not None:
@@ -493,14 +578,11 @@ class UpdaterWindow:
         self.app = app
         self.window = tk.Toplevel(app)
         self.window.title("Updater")
-        self.window.geometry("860x620")
-        self.window.minsize(760, 520)
+        self.window.geometry("860x540")
+        self.window.minsize(760, 460)
         self.window.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.status_var = tk.StringVar(value="Updater is stopped")
-        self.prompt_var = tk.StringVar(value="Waiting for updater input")
-        self.input_var = tk.StringVar()
-        self._prompt_buttons: list[ttk.Button] = []
 
         root = ttk.Frame(self.window, padding=12)
         root.pack(fill="both", expand=True)
@@ -514,18 +596,8 @@ class UpdaterWindow:
         toolbar.pack(fill="x", pady=(10, 0))
         ttk.Button(toolbar, text="Clear log", command=self.clear_log).pack(side="left")
         ttk.Button(toolbar, text="Stop", command=self.app.stop_updater).pack(side="left", padx=8)
-        ttk.Label(toolbar, text="Input").pack(side="left", padx=(20, 6))
-        self.input_entry = ttk.Entry(toolbar, textvariable=self.input_var)
-        self.input_entry.pack(side="left", fill="x", expand=True)
-        ttk.Button(toolbar, text="Send", command=self.send_input).pack(side="left", padx=8)
 
-        prompt_frame = ttk.Frame(root)
-        prompt_frame.pack(fill="x", pady=(10, 0))
-        ttk.Label(prompt_frame, textvariable=self.prompt_var).pack(anchor="w")
-        self.prompt_button_row = ttk.Frame(prompt_frame)
-        self.prompt_button_row.pack_forget()
-
-        self.log_widget = ScrolledText(root, height=18, wrap="word")
+        self.log_widget = ScrolledText(root, height=22, wrap="word")
         self.log_widget.pack(fill="both", expand=True, pady=(10, 0))
         self.log_widget.configure(state="disabled")
 
@@ -541,44 +613,24 @@ class UpdaterWindow:
         if self.window.winfo_exists():
             self.window.destroy()
 
+    MAX_LOG_LINES = 1000
+
     def append_log(self, text: str) -> None:
         self.log_widget.configure(state="normal")
         self.log_widget.insert("end", text + "\n")
+        total = int(self.log_widget.index("end-1c").split(".")[0])
+        if total > self.MAX_LOG_LINES:
+            self.log_widget.delete("1.0", f"{total - self.MAX_LOG_LINES + 100}.0")
         self.log_widget.see("end")
         self.log_widget.configure(state="disabled")
 
     def set_state(self, running: bool) -> None:
         self.status_var.set("Updater is running" if running else "Updater is stopped")
 
-    def clear_prompt(self) -> None:
-        for widget in self.prompt_button_row.winfo_children():
-            widget.destroy()
-        self._prompt_buttons.clear()
-        self.prompt_button_row.pack_forget()
-
-    def set_prompt(self, text: str, options: list[str]) -> None:
-        self.prompt_var.set(text or "Waiting for updater input")
-        self.clear_prompt()
-        if not options:
-            return
-        self.prompt_button_row.pack(fill="x", pady=(6, 0))
-        for option in options:
-            button = ttk.Button(
-                self.prompt_button_row,
-                text=option,
-                command=lambda value=option: self.app.send_updater_input(value),
-            )
-            button.pack(side="left", padx=(0, 8))
-            self._prompt_buttons.append(button)
-
     def clear_log(self) -> None:
         self.log_widget.configure(state="normal")
         self.log_widget.delete("1.0", "end")
         self.log_widget.configure(state="disabled")
-
-    def send_input(self) -> None:
-        self.app.send_updater_input(self.input_var.get())
-        self.input_var.set("")
 
 
 
@@ -751,6 +803,7 @@ class LauncherApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.withdraw()
         self.after(100, self._drain_events)
+        self.after(200, self._update_updater_btn)
 
     def _setup_styles(self) -> None:
         self.configure(bg=BG)
@@ -828,7 +881,8 @@ class LauncherApp(tk.Tk):
         action_row = ttk.Frame(path_frame)
         action_row.pack(fill="x", pady=(10, 0))
         ttk.Button(action_row, text="Launch Game", command=self.launch_game).pack(side="left")
-        ttk.Button(action_row, text="Launch Updater", command=self.start_updater).pack(side="left", padx=8)
+        self._updater_btn = ttk.Button(action_row, text="Launch Updater", command=self.start_updater)
+        self._updater_btn.pack(side="left", padx=8)
         ttk.Label(action_row, textvariable=self.status_var).pack(side="left", padx=12)
 
         zip_frame = ttk.LabelFrame(root, text="ZIP Import", padding=10)
@@ -909,9 +963,6 @@ class LauncherApp(tk.Tk):
 
     def _queue_log(self, text: str) -> None:
         self.events.put(("log", text, ""))
-        options = parse_prompt_options(text)
-        if options:
-            self.events.put(("prompt", text, "\u001f".join(options)))
 
     def _queue_state(self, running: bool) -> None:
         self.events.put(("state", running, ""))
@@ -940,7 +991,7 @@ class LauncherApp(tk.Tk):
 
     def _drain_events(self) -> None:
         try:
-            while True:
+            for _ in range(50):
                 kind, payload, extra = self.events.get_nowait()
                 if kind == "log":
                     if self.updater_window:
@@ -953,13 +1004,9 @@ class LauncherApp(tk.Tk):
                         if not running:
                             self.updater_window.destroy()
                             self.updater_window = None
-                elif kind == "prompt":
-                    options = [item for item in str(extra).split("\u001f") if item]
-                    if self.updater_window:
-                        self.updater_window.set_prompt(str(payload), options)
         except queue.Empty:
             pass
-        self.after(100, self._drain_events)
+        self.after(50, self._drain_events)
 
     def _ensure_updater_window(self) -> None:
         if self.updater_window and self.updater_window.window.winfo_exists():
@@ -972,8 +1019,11 @@ class LauncherApp(tk.Tk):
         state = load_launcher_state()
         saved_path = str(state.get("exePath") or "").strip()
         if saved_path and Path(saved_path).exists():
-            self.exe_path_var.set(saved_path)
-            self.current_root_var.set(f"Game root: {Path(saved_path).resolve().parent}")
+            p = Path(saved_path)
+            if p.suffix.lower() == ".exe":
+                p = p.parent
+            self.exe_path_var.set(str(p))
+            self.current_root_var.set(f"Game root: {p.resolve()}")
             self.refresh_all()
         
         self.launcher_version = str(state.get("launcherVersion") or "")
@@ -1087,6 +1137,52 @@ class LauncherApp(tk.Tk):
         self.save_current_state()
         self.after(0, self.destroy)
 
+    def _update_updater_btn(self) -> None:
+        raw = self.exe_path_var.get().strip()
+        if raw and (Path(raw) / WINDOWS_GAME_EXE_NAME).exists():
+            self._updater_btn.config(text="Launch Updater", command=self.start_updater)
+        else:
+            self._updater_btn.config(text="Install Game", command=self._install_game)
+
+    def _install_game(self) -> None:
+        try:
+            raw = self.exe_path_var.get().strip()
+            if not raw:
+                raise ValueError("Select a game folder first")
+            dest = Path(raw)
+            dest.mkdir(parents=True, exist_ok=True)
+
+            self.status_var.set("Downloading game...")
+
+            import urllib.request
+            download_req = urllib.request.Request(
+                GAME_BOOTSTRAP_URL,
+                headers={"User-Agent": "TaikoNautsLauncher/1.0"},
+            )
+            zip_path = dest / "TaikoNauts-latest.zip"
+            with urllib.request.urlopen(download_req, timeout=120) as resp:
+                with zip_path.open("wb") as f:
+                    shutil.copyfileobj(resp, f)
+
+            self.status_var.set("Extracting game...")
+            self.update_idletasks()
+
+            extract_zip_archive(zip_path, dest)
+            zip_path.unlink(missing_ok=True)
+
+            exe_found = list(dest.rglob(WINDOWS_GAME_EXE_NAME))
+            if exe_found:
+                game_root = exe_found[0].resolve().parent
+                self.exe_path_var.set(str(game_root))
+                self.current_root_var.set(f"Game root: {game_root}")
+
+            self.status_var.set("Game installed")
+            self._updater_btn.config(text="Launch Updater", command=self.start_updater)
+            self.start_updater()
+        except Exception as exc:
+            messagebox.showerror("Install error", str(exc))
+            self.status_var.set("Install failed")
+
     def save_current_state(self) -> None:
         exe_path = self.exe_path_var.get().strip()
         geometry = self.geometry()
@@ -1199,42 +1295,55 @@ class LauncherApp(tk.Tk):
             messagebox.showerror("ZIP folder cleanup error", str(exc))
 
     def select_exe(self) -> None:
-        selected = filedialog.askopenfilename(
-            title="Select TaikoNauts.exe",
-            filetypes=[("Executable", "*.exe"), ("All files", "*.*")],
+        selected = filedialog.askdirectory(
+            title="Select TaikoNauts game folder",
         )
         if selected:
             self.exe_path_var.set(selected)
-            self.current_root_var.set(f"Game root: {Path(selected).resolve().parent}")
+            self.current_root_var.set(f"Game root: {Path(selected).resolve()}")
             try:
                 save_launcher_state(selected)
             except Exception:
                 pass
             self.refresh_all()
+            self._update_updater_btn()
 
     def get_exe_path(self) -> Path:
         raw = self.exe_path_var.get().strip()
         if not raw:
-            raise ValueError("TaikoNauts.exe path is not set")
-        exe_path = Path(raw)
+            raise ValueError("Game folder is not set")
+        root = Path(raw)
+        if not root.exists():
+            raise FileNotFoundError(f"Game folder not found: {root}")
+        exe_path = root / WINDOWS_GAME_EXE_NAME
         if not exe_path.exists():
-            raise FileNotFoundError(f"TaikoNauts.exe not found: {exe_path}")
+            raise FileNotFoundError(f"Game executable not found: {exe_path}")
         return exe_path
 
     def refresh_all(self) -> None:
         try:
             self.refresh_skins()
-            try:
-                exe_path = self.get_exe_path()
-                self.current_root_var.set(f"Game root: {exe_path.resolve().parent}")
-            except Exception:
+            raw = self.exe_path_var.get().strip()
+            if raw and Path(raw).exists():
+                self.current_root_var.set(f"Game root: {Path(raw).resolve()}")
+            else:
                 self.current_root_var.set("Game root not selected")
             self.status_var.set("Ready")
+            self._update_updater_btn()
         except Exception as exc:
             messagebox.showerror("Refresh error", str(exc))
 
     def refresh_skins(self) -> None:
-        exe_path = self.get_exe_path()
+        try:
+            exe_path = self.get_exe_path()
+        except (ValueError, FileNotFoundError):
+            self.skins = []
+            self.skin_map.clear()
+            for item in self.skin_tree.get_children():
+                self.skin_tree.delete(item)
+            self.skin_message_var.set("Select game folder")
+            self.skin_count_var.set("0 skins")
+            return
         self.skins = discover_skins(exe_path)
         self.skin_map.clear()
 
@@ -1277,7 +1386,11 @@ class LauncherApp(tk.Tk):
             self.skin_message_var.set(f"Selected: {skin.name}")
 
     def apply_selected_skin(self) -> None:
-        exe_path = self.get_exe_path()
+        try:
+            exe_path = self.get_exe_path()
+        except (ValueError, FileNotFoundError) as exc:
+            messagebox.showerror("Error", str(exc))
+            return
         selection = self.skin_tree.selection()
         if not selection:
             messagebox.showwarning("No selection", "Select a skin first")
@@ -1296,7 +1409,7 @@ class LauncherApp(tk.Tk):
     def launch_game(self) -> None:
         try:
             exe_path = self.get_exe_path()
-            save_launcher_state(str(exe_path))
+            save_launcher_state(str(self.exe_path_var.get().strip()))
             subprocess.Popen([str(exe_path)], cwd=str(exe_path.parent))
             self.status_var.set("Game launched")
         except Exception as exc:
@@ -1304,8 +1417,19 @@ class LauncherApp(tk.Tk):
 
     def start_updater(self) -> None:
         try:
-            exe_path = self.get_exe_path()
-            save_launcher_state(str(exe_path))
+            config_window = UpdaterConfigWindow(self)
+            config = config_window.show()
+            if config is None:
+                return
+
+            raw = self.exe_path_var.get().strip()
+            if not raw:
+                raise ValueError("Game folder is not set")
+            game_root = Path(raw)
+            if not game_root.exists():
+                raise FileNotFoundError(f"Game folder not found: {game_root}")
+            exe_path = game_root / WINDOWS_GAME_EXE_NAME
+            save_launcher_state(str(raw))
             if self.updater_session and self.updater_session.process and self.updater_session.process.poll() is None:
                 self._ensure_updater_window()
                 messagebox.showinfo("Updater", "Updater is already running")
@@ -1317,24 +1441,13 @@ class LauncherApp(tk.Tk):
                 self._queue_log,
                 self._queue_state,
                 self._handle_updater_exit,
+                config,
             )
             self.updater_session.start()
             self._queue_log("[launcher] updater started")
         except Exception as exc:
             messagebox.showerror("Updater error", str(exc))
 
-    def send_updater_input(self, text: str | None = None) -> None:
-        if not self.updater_session:
-            messagebox.showwarning("Updater", "Updater is not running")
-            return
-        value = text if text is not None else ""
-        if not value:
-            return
-        try:
-            self.updater_session.send(value)
-            self._queue_log(f"> {value}")
-        except Exception as exc:
-            messagebox.showerror("Send error", str(exc))
 
     def stop_updater(self) -> None:
         if self.updater_session:
