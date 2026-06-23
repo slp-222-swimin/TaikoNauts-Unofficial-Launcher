@@ -1,17 +1,5 @@
-from __future__ import annotations
-
-import json
-import os
-import queue
-import shutil
-import re
-import subprocess
-import threading
-import time
-import ctypes
-import zipfile
-import tempfile
 import sys
+<<<<<<< HEAD
 from dataclasses import dataclass
 from pathlib import Path
 import tkinter as tk
@@ -1528,6 +1516,9 @@ def main() -> int:
     app.after(SPLASH_DURATION_MS, show_main)
     app.mainloop()
     return 0
+=======
+from src.ui.app import main
+>>>>>>> 76da815 (clear: main.py の複数ファイル化、モダンなUIへの変更)
 
 
 if __name__ == "__main__":
