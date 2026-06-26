@@ -43,6 +43,7 @@ from src.ui.styles import (
     setup_styles,
 )
 from src.ui.splash import SplashScreen
+from src.ui.editor import PlayerDataEditor
 from src.ui.updater_windows import (
     UpdaterConfigWindow, UpdaterWindow, UpdateDownloadWindow,
 )
@@ -55,7 +56,7 @@ class LauncherApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("980x700")
+        self.geometry("980x700+727+174")
         self.minsize(900, 620)
 
         self.exe_path_var = tk.StringVar()
@@ -150,7 +151,7 @@ class LauncherApp(tk.Tk):
         zip_header = tk.Frame(zip_inner, bg=CARD)
         zip_header.pack(fill="x")
         tk.Label(zip_header, text="📦", bg=CARD, fg=TEXT, font=(FONT_FAMILY, 14)).pack(side="left")
-        tk.Label(zip_header, text="Beatmap Import", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(side="left", padx=(6, 0))
+        tk.Label(zip_header, text="Fumen Import", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(side="left", padx=(6, 0))
 
         # Drop zone with dashed-border effect
         self.zip_drop_zone = tk.Frame(
@@ -198,6 +199,7 @@ class LauncherApp(tk.Tk):
         skin_toolbar.pack(fill="x", pady=(CARD_INNER, 0))
         ttk.Button(skin_toolbar, text="Reload skins", style="Ghost.TButton", command=self.refresh_skins).pack(side="left")
         ttk.Button(skin_toolbar, text="Apply selected skin", style="Accent.TButton", command=self.apply_selected_skin).pack(side="left", padx=(8, 0))
+        ttk.Button(skin_toolbar, text="Edit", style="Ghost.TButton", command=self.open_editor).pack(side="left", padx=(8, 0))
         tk.Label(skin_toolbar, textvariable=self.skin_message_var, bg=CARD, fg=MUTED, font=FONT_SMALL).pack(side="left", padx=(12, 0))
 
         tree_frame = tk.Frame(skin_inner, bg=BG_ELEVATED, highlightthickness=1, highlightbackground=BORDER, bd=0)
@@ -698,6 +700,22 @@ class LauncherApp(tk.Tk):
         write_game_config(exe_path, config)
         self.skin_message_var.set(f"skinPath updated: {skin.skin_path_value}")
         messagebox.showinfo("Done", f"skinPath updated:\n{skin.skin_path_value}")
+
+    def open_editor(self) -> None:
+        try:
+            exe_path = self.get_exe_path()
+        except (ValueError, FileNotFoundError) as exc:
+            messagebox.showerror("Error", str(exc))
+            return
+
+        selection = self.skin_tree.selection()
+        skin_folder: Path | None = None
+        if selection:
+            skin = self.skin_map.get(selection[0])
+            if skin:
+                skin_folder = skin.folder
+
+        PlayerDataEditor(self, exe_path, skin_folder)
 
     def launch_game(self) -> None:
         try:
