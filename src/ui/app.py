@@ -55,7 +55,7 @@ class LauncherApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("980x700")
+        self.geometry("980x1165")
         self.minsize(900, 620)
 
         self.exe_path_var = tk.StringVar()
