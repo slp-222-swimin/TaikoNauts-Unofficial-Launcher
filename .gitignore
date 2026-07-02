@@ -5,3 +5,4 @@ dist/
 __pycache__/
 *.pyc
 game/
+launcher_state.json
