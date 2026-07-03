@@ -36,6 +36,7 @@ from src.ui.styles import (
     BG, BG_ELEVATED, PANEL, PANEL_ALT, CARD, CARD_HOVER,
     TEXT, TEXT_SECONDARY, MUTED, ACCENT, ACCENT_SOFT, ACCENT_GLOW,
     BORDER, BORDER_SUBTLE, SUCCESS, ERROR,
+    SIDEBAR_BG, SIDEBAR_TEXT,
     SPLASH_DURATION_MS,
     CARD_PAD_X, CARD_PAD_Y, CARD_INNER, SECTION_GAP,
     FONT_FAMILY, FONT_TITLE, FONT_HEADING, FONT_SECTION,
@@ -55,16 +56,18 @@ class LauncherApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("980x1165")
-        self.minsize(900, 620)
+        self.geometry("800x600")
+        self.minsize(700, 500)
 
         self.exe_path_var = tk.StringVar()
-        self.status_var = tk.StringVar(value="Select TaikoNauts.exe")
+        self.status_var = tk.StringVar(value="Select game folder")
         self.skin_message_var = tk.StringVar(value="")
         self.current_root_var = tk.StringVar(value="Game root not selected")
         self.skin_count_var = tk.StringVar(value="0 skins")
         self.drop_hint_var = tk.StringVar(value="Drop a ZIP file here to extract it into Songs\\zip")
         self.zip_status_var = tk.StringVar(value="Ready")
+        self.zip_extract_var = tk.StringVar(value="Songs\\zip")
+        self._active_tab = tk.StringVar(value="game")
 
         self.skins: list[SkinInfo] = []
         self.skin_map: dict[str, SkinInfo] = {}
@@ -75,6 +78,8 @@ class LauncherApp(tk.Tk):
         self._drop_old_wndproc = None
         self.zip_drop_zone = None
         self.launcher_version: str = ""
+        self._tab_frames: dict[str, tk.Frame] = {}
+        self._sidebar_btns: dict[str, ttk.Button] = {}
 
         setup_styles(self)
         self._build_ui()
@@ -88,49 +93,78 @@ class LauncherApp(tk.Tk):
     # ── UI Construction ─────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        root = ttk.Frame(self, padding=16)
+        root = tk.Frame(self, bg=BG)
         root.pack(fill="both", expand=True)
 
-        # ── Header Card ─────────────────────────────────────────
-        header_card = tk.Frame(root, bg=CARD, highlightthickness=1, highlightbackground=BORDER, bd=0)
-        header_card.pack(fill="x", pady=(0, SECTION_GAP))
+        # ── Sidebar ─────────────────────────────────────────────
+        sidebar = tk.Frame(root, bg=SIDEBAR_BG, width=170)
+        sidebar.pack(side="left", fill="y")
+        sidebar.pack_propagate(False)
 
-        header_inner = tk.Frame(header_card, bg=CARD)
-        header_inner.pack(fill="x", padx=CARD_PAD_X, pady=CARD_PAD_Y)
+        tabs = [
+            ("game", "🎮", "Game"),
+            ("skins", "🎨", "Skins"),
+            ("zip", "📦", "ZIP Import"),
+            ("config", "⚙", "Config"),
+        ]
+        for key, emoji, label in tabs:
+            btn = ttk.Button(
+                sidebar,
+                text=f"  {emoji}  {label}",
+                style="Sidebar.TButton",
+                command=lambda k=key: self._switch_tab(k),
+            )
+            btn.pack(fill="x")
+            self._sidebar_btns[key] = btn
 
-        tk.Label(
-            header_inner, text="TaikøNauts",
-            bg=CARD, fg=TEXT, font=FONT_TITLE,
-        ).pack(anchor="w")
-        tk.Label(
-            header_inner, text="UNOFFL Launcher",
-            bg=CARD, fg=ACCENT, font=(FONT_FAMILY, 20, "bold"),
-        ).place(relx=0.0, rely=0.0, x=170, y=2)
-        tk.Label(
-            header_inner,
-            text="Launch the game, manage updates, switch skins, and import beatmaps.",
-            bg=CARD, fg=MUTED, font=FONT_BODY,
-        ).pack(anchor="w", pady=(4, 0))
+        # Spacer + version link at sidebar bottom
+        sidebar_spacer = tk.Frame(sidebar, bg=SIDEBAR_BG)
+        sidebar_spacer.pack(fill="both", expand=True)
+        version_text = f"v{normalize_version_label(APP_VERSION)}"
+        version_link = tk.Label(
+            sidebar, text=version_text,
+            fg=MUTED, bg=SIDEBAR_BG, font=FONT_TINY, cursor="hand2",
+        )
+        version_link.pack(side="bottom", pady=(0, 12))
+        version_link.bind("<Enter>", lambda _: version_link.configure(fg=ACCENT))
+        version_link.bind("<Leave>", lambda _: version_link.configure(fg=MUTED))
+        version_link.bind("<Button-1>", lambda _: __import__("webbrowser").open(GITHUB_REPO_URL))
 
-        # ── Game Section Card ───────────────────────────────────
-        game_card = tk.Frame(root, bg=CARD, highlightthickness=1, highlightbackground=BORDER, bd=0)
-        game_card.pack(fill="x", pady=(0, SECTION_GAP))
+        # ── Content area ────────────────────────────────────────
+        content = tk.Frame(root, bg=CARD)
+        content.pack(side="right", fill="both", expand=True, padx=(1, 0))
 
-        game_inner = tk.Frame(game_card, bg=CARD)
-        game_inner.pack(fill="x", padx=CARD_PAD_X, pady=CARD_PAD_Y)
+        self._content = content
+        self._build_tab_game()
+        self._build_tab_skins()
+        self._build_tab_zip()
+        self._build_tab_config()
+        self._switch_tab("game")
 
-        game_header = tk.Frame(game_inner, bg=CARD)
-        game_header.pack(fill="x")
-        tk.Label(game_header, text="🎮", bg=CARD, fg=TEXT, font=(FONT_FAMILY, 14)).pack(side="left")
-        tk.Label(game_header, text="Game", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(side="left", padx=(6, 0))
+    def _switch_tab(self, name: str) -> None:
+        self._active_tab.set(name)
+        for key, frame in self._tab_frames.items():
+            frame.pack_forget() if key != name else None
+            style = "SidebarActive.TButton" if key == name else "Sidebar.TButton"
+            self._sidebar_btns[key].configure(style=style)
+        self._tab_frames[name].pack(fill="both", expand=True)
 
-        path_row = ttk.Frame(game_inner, style="CardInner.TFrame")
+    def _build_tab_game(self) -> None:
+        frame = tk.Frame(self._content, bg=CARD)
+        self._tab_frames["game"] = frame
+
+        inner = tk.Frame(frame, bg=CARD)
+        inner.pack(fill="x", padx=CARD_PAD_X, pady=CARD_PAD_Y)
+
+        tk.Label(inner, text="🎮  Game", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(anchor="w")
+
+        path_row = ttk.Frame(inner)
         path_row.pack(fill="x", pady=(CARD_INNER, 0))
         ttk.Entry(path_row, textvariable=self.exe_path_var).pack(side="left", fill="x", expand=True)
         ttk.Button(path_row, text="Browse…", style="Ghost.TButton", command=self.select_exe).pack(side="left", padx=(8, 0))
         ttk.Button(path_row, text="Refresh", style="Ghost.TButton", command=self.refresh_all).pack(side="left", padx=(6, 0))
 
-        action_row = tk.Frame(game_inner, bg=CARD)
+        action_row = tk.Frame(inner, bg=CARD)
         action_row.pack(fill="x", pady=(CARD_INNER, 0))
         ttk.Button(action_row, text="▶  Launch Game", style="Accent.TButton", command=self.launch_game).pack(side="left")
         self._updater_btn = ttk.Button(action_row, text="⬆  Launch Updater", command=self.start_updater)
@@ -140,107 +174,93 @@ class LauncherApp(tk.Tk):
         status_frame.pack(side="left", padx=(16, 0))
         tk.Label(status_frame, textvariable=self.status_var, bg=CARD, fg=MUTED, font=FONT_SMALL).pack(anchor="w")
 
-        # ── ZIP Import Card ─────────────────────────────────────
-        zip_card = tk.Frame(root, bg=CARD, highlightthickness=1, highlightbackground=BORDER, bd=0)
-        zip_card.pack(fill="x", pady=(0, SECTION_GAP))
+    def _build_tab_skins(self) -> None:
+        frame = tk.Frame(self._content, bg=CARD)
+        self._tab_frames["skins"] = frame
 
-        zip_inner = tk.Frame(zip_card, bg=CARD)
-        zip_inner.pack(fill="x", padx=CARD_PAD_X, pady=CARD_PAD_Y)
+        inner = tk.Frame(frame, bg=CARD)
+        inner.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=CARD_PAD_Y)
 
-        zip_header = tk.Frame(zip_inner, bg=CARD)
-        zip_header.pack(fill="x")
-        tk.Label(zip_header, text="📦", bg=CARD, fg=TEXT, font=(FONT_FAMILY, 14)).pack(side="left")
-        tk.Label(zip_header, text="Beatmap Import", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(side="left", padx=(6, 0))
+        tk.Label(inner, text="🎨  Skins", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(anchor="w")
 
-        # Drop zone with dashed-border effect
-        self.zip_drop_zone = tk.Frame(
-            zip_inner,
-            bg=PANEL_ALT,
-            highlightthickness=1,
-            highlightbackground=ACCENT_SOFT,
-            highlightcolor=ACCENT,
-            bd=0,
-        )
-        self.zip_drop_zone.pack(fill="x", pady=(CARD_INNER, 0))
+        toolbar = tk.Frame(inner, bg=CARD)
+        toolbar.pack(fill="x", pady=(CARD_INNER, 0))
+        ttk.Button(toolbar, text="Reload skins", style="Ghost.TButton", command=self.refresh_skins).pack(side="left")
+        ttk.Button(toolbar, text="Apply selected skin", style="Accent.TButton", command=self.apply_selected_skin).pack(side="left", padx=(8, 0))
+        tk.Label(toolbar, textvariable=self.skin_message_var, bg=CARD, fg=MUTED, font=FONT_SMALL).pack(side="left", padx=(12, 0))
 
-        drop_inner = tk.Frame(self.zip_drop_zone, bg=PANEL_ALT)
-        drop_inner.pack(fill="x", padx=18, pady=18)
-
-        tk.Label(
-            drop_inner,
-            text="⬇  Drop ZIP files here",
-            bg=PANEL_ALT, fg=TEXT, font=FONT_SECTION,
-        ).pack(anchor="w")
-        tk.Label(
-            drop_inner,
-            text="Only files dropped onto this area will be extracted into Songs\\zip.",
-            bg=PANEL_ALT, fg=MUTED, font=FONT_BODY,
-        ).pack(anchor="w", pady=(4, 0))
-
-        zip_actions = tk.Frame(zip_inner, bg=CARD)
-        zip_actions.pack(fill="x", pady=(CARD_INNER, 0))
-        ttk.Button(zip_actions, text="Clear extracted folder", style="Ghost.TButton", command=self.clear_extracted_zip_folder).pack(side="left")
-        tk.Label(zip_actions, textvariable=self.zip_status_var, bg=CARD, fg=ACCENT, font=FONT_SMALL).pack(side="left", padx=(12, 0))
-
-        # ── Skins Card ──────────────────────────────────────────
-        skin_card = tk.Frame(root, bg=CARD, highlightthickness=1, highlightbackground=BORDER, bd=0)
-        skin_card.pack(fill="both", expand=True, pady=(0, SECTION_GAP))
-
-        skin_inner = tk.Frame(skin_card, bg=CARD)
-        skin_inner.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=CARD_PAD_Y)
-
-        skin_header = tk.Frame(skin_inner, bg=CARD)
-        skin_header.pack(fill="x")
-        tk.Label(skin_header, text="🎨", bg=CARD, fg=TEXT, font=(FONT_FAMILY, 14)).pack(side="left")
-        tk.Label(skin_header, text="Skins", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(side="left", padx=(6, 0))
-
-        skin_toolbar = tk.Frame(skin_inner, bg=CARD)
-        skin_toolbar.pack(fill="x", pady=(CARD_INNER, 0))
-        ttk.Button(skin_toolbar, text="Reload skins", style="Ghost.TButton", command=self.refresh_skins).pack(side="left")
-        ttk.Button(skin_toolbar, text="Apply selected skin", style="Accent.TButton", command=self.apply_selected_skin).pack(side="left", padx=(8, 0))
-        tk.Label(skin_toolbar, textvariable=self.skin_message_var, bg=CARD, fg=MUTED, font=FONT_SMALL).pack(side="left", padx=(12, 0))
-
-        tree_frame = tk.Frame(skin_inner, bg=BG_ELEVATED, highlightthickness=1, highlightbackground=BORDER, bd=0)
+        tree_frame = tk.Frame(inner, bg=BG_ELEVATED, highlightthickness=1, highlightbackground=BORDER, bd=0)
         tree_frame.pack(fill="both", expand=True, pady=(CARD_INNER, 0))
 
         self.skin_tree = ttk.Treeview(
             tree_frame,
             columns=("name", "version", "path", "description"),
             show="headings",
-            height=12,
+            height=6,
         )
         self.skin_tree.heading("name", text="Name", anchor="w")
         self.skin_tree.heading("version", text="Version", anchor="w")
         self.skin_tree.heading("path", text="SkinPath", anchor="w")
         self.skin_tree.heading("description", text="Description", anchor="w")
-        self.skin_tree.column("name", width=180, anchor="w")
-        self.skin_tree.column("version", width=130, anchor="w")
-        self.skin_tree.column("path", width=280, anchor="w")
-        self.skin_tree.column("description", width=460, anchor="w")
+        self.skin_tree.column("name", width=120, anchor="w")
+        self.skin_tree.column("version", width=80, anchor="w")
+        self.skin_tree.column("path", width=160, anchor="w")
+        self.skin_tree.column("description", width=220, anchor="w")
 
         scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.skin_tree.yview)
         self.skin_tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.skin_tree.pack(fill="both", expand=True)
-
         self.skin_tree.bind("<<TreeviewSelect>>", self._on_skin_select)
 
-        # ── Footer ──────────────────────────────────────────────
-        footer = tk.Frame(root, bg=BG)
-        footer.pack(fill="x", pady=(0, 0))
-        version_text = f"v{normalize_version_label(APP_VERSION)}"
-        version_link = tk.Label(
-            footer,
-            text=version_text,
-            fg=MUTED,
-            bg=BG,
-            font=FONT_TINY,
-            cursor="hand2",
+    def _build_tab_zip(self) -> None:
+        frame = tk.Frame(self._content, bg=CARD)
+        self._tab_frames["zip"] = frame
+
+        inner = tk.Frame(frame, bg=CARD)
+        inner.pack(fill="x", padx=CARD_PAD_X, pady=CARD_PAD_Y)
+
+        tk.Label(inner, text="📦  Beatmap Import", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(anchor="w")
+
+        extract_row = ttk.Frame(inner)
+        extract_row.pack(fill="x", pady=(CARD_INNER, 0))
+        ttk.Label(extract_row, text="Extract to:", font=FONT_BODY).pack(side="left")
+        ttk.Entry(extract_row, textvariable=self.zip_extract_var).pack(side="left", fill="x", expand=True, padx=(8, 0))
+        ttk.Button(extract_row, text="Browse...", style="Ghost.TButton", command=lambda: self._browse_zip_extract()).pack(side="left", padx=(8, 0))
+
+        clear_row = ttk.Frame(inner)
+        clear_row.pack(fill="x", pady=(6, 0))
+        ttk.Button(clear_row, text="Clear extracted folder", style="Ghost.TButton", command=self.clear_extracted_zip_folder).pack(side="left")
+        tk.Label(clear_row, textvariable=self.zip_status_var, bg=CARD, fg=ACCENT, font=FONT_SMALL).pack(side="left", padx=(12, 0))
+
+        self.zip_drop_zone = tk.Frame(
+            inner, bg=PANEL_ALT,
+            highlightthickness=1, highlightbackground=ACCENT_SOFT,
+            highlightcolor=ACCENT, bd=0,
         )
-        version_link.pack(side="left")
-        version_link.bind("<Enter>", lambda _: version_link.configure(fg=ACCENT))
-        version_link.bind("<Leave>", lambda _: version_link.configure(fg=MUTED))
-        version_link.bind("<Button-1>", lambda _: __import__("webbrowser").open(GITHUB_REPO_URL))
+        self.zip_drop_zone.pack(fill="x", pady=(CARD_INNER, 0))
+
+        drop_inner = tk.Frame(self.zip_drop_zone, bg=PANEL_ALT)
+        drop_inner.pack(fill="x", padx=18, pady=18)
+        tk.Label(drop_inner, text="⬇  Drop ZIP files here", bg=PANEL_ALT, fg=TEXT, font=FONT_SECTION).pack(anchor="w")
+        tk.Label(
+            drop_inner,
+            text="Only files dropped onto this area will be extracted into the path above.",
+            bg=PANEL_ALT, fg=MUTED, font=FONT_BODY,
+        ).pack(anchor="w", pady=(4, 0))
+
+    def _build_tab_config(self) -> None:
+        frame = tk.Frame(self._content, bg=CARD)
+        self._tab_frames["config"] = frame
+
+        inner = tk.Frame(frame, bg=CARD)
+        inner.pack(fill="x", padx=CARD_PAD_X, pady=CARD_PAD_Y)
+
+        tk.Label(inner, text="⚙  Config", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(anchor="w")
+        tk.Label(
+            inner, text="Game and system settings editor coming soon.",
+            bg=CARD, fg=MUTED, font=FONT_BODY,
+        ).pack(anchor="w", pady=(CARD_INNER, 0))
 
     # ── Event Queue ─────────────────────────────────────────────
 
@@ -289,7 +309,7 @@ class LauncherApp(tk.Tk):
                             self.updater_window = None
         except queue.Empty:
             pass
-        self.after(50, self._drain_events)
+        self.after(100, self._drain_events)
 
     def _ensure_updater_window(self) -> None:
         if self.updater_window and self.updater_window.window.winfo_exists():
@@ -312,6 +332,9 @@ class LauncherApp(tk.Tk):
             self.refresh_all()
 
         self.launcher_version = str(state.get("launcherVersion") or "")
+        saved_zip = state.get("zipExtractPath")
+        if saved_zip:
+            self.zip_extract_var.set(str(saved_zip))
 
         geometry = state.get("geometry")
         if geometry:
@@ -470,12 +493,30 @@ class LauncherApp(tk.Tk):
             messagebox.showerror("Install error", str(exc))
             self.status_var.set("Install failed")
 
+    def _browse_zip_extract(self) -> None:
+        try:
+            exe_path = self.get_exe_path()
+            default = exe_path.parent / self.zip_extract_var.get()
+        except Exception:
+            default = Path(self.zip_extract_var.get())
+        selected = filedialog.askdirectory(
+            title="Select extract target folder",
+            initialdir=str(default.parent) if default.parent.exists() else None,
+        )
+        if selected:
+            try:
+                exe_path = self.get_exe_path()
+                rel = Path(selected).resolve().relative_to(exe_path.parent.resolve())
+                self.zip_extract_var.set(str(rel).replace("\\", "/"))
+            except (ValueError, FileNotFoundError):
+                self.zip_extract_var.set(selected)
+
     # ── State Persistence ───────────────────────────────────────
 
     def save_current_state(self) -> None:
         exe_path = self.exe_path_var.get().strip()
         geometry = self.geometry()
-        save_launcher_state(exe_path, geometry, APP_VERSION)
+        save_launcher_state(exe_path, geometry, APP_VERSION, self.zip_extract_var.get())
 
     def _on_close(self) -> None:
         try:
@@ -555,7 +596,7 @@ class LauncherApp(tk.Tk):
                     continue
                 try:
                     exe_path = self.get_exe_path()
-                    target = extract_zip_to_songs(exe_path, path)
+                    target = extract_zip_to_songs(exe_path, path, self.zip_extract_var.get())
                     self.skin_message_var.set(f"Extracted {path.name} -> {target}")
                     self.zip_status_var.set(f"Extracted {path.name}")
                     messagebox.showinfo("Done", f"Extracted:\n{path.name}\n->\n{target}")
@@ -571,7 +612,8 @@ class LauncherApp(tk.Tk):
             messagebox.showerror("ZIP folder", str(exc))
             return
 
-        target_dir = resolve_game_root(exe_path) / "Songs" / "zip"
+        game_root = resolve_game_root(exe_path)
+        target_dir = game_root / self.zip_extract_var.get()
         if not messagebox.askyesno(
             "Confirm cleanup",
             f"Delete everything in this folder except box.def?\n\n{target_dir}",
@@ -579,7 +621,7 @@ class LauncherApp(tk.Tk):
             return
 
         try:
-            target = clear_zip_folder_keep_box_def(exe_path)
+            target = clear_zip_folder_keep_box_def(exe_path, self.zip_extract_var.get())
             self.zip_status_var.set(f"Cleared {target}")
             messagebox.showinfo("Done", f"Cleared extracted folder:\n{target}")
         except Exception as exc:

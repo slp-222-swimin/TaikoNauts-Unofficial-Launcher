@@ -1,0 +1,10 @@
+﻿{
+  "skinPath": "Skins/SimpleStyle/",
+  "songPath": [
+    ""
+  ],
+  "isReplacedKeyIn2P": true,
+  "autoRollSpeedPerSecond": 60,
+  "boxCloseInterval": 7,
+  "maxSongCount": 3
+}

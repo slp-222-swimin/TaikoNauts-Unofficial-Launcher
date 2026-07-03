@@ -25,6 +25,13 @@ WARNING       = "#d29922"
 ERROR         = "#f85149"
 SURFACE_HOVER = "#1c2333"
 
+# ── Sidebar ───────────────────────────────────────────────────
+SIDEBAR_BG     = "#11161d"
+SIDEBAR_ACTIVE = "#1f2937"
+SIDEBAR_HOVER  = "#1c2333"
+SIDEBAR_TEXT   = "#c9d1d9"
+SIDEBAR_ACCENT = "#58a6ff"
+
 # ── Layout Constants ────────────────────────────────────────────
 SPLASH_DURATION_MS = 2200
 CARD_PAD_X   = 20
@@ -206,3 +213,32 @@ def setup_styles(root: tk.Tk) -> None:
         arrowsize=0,
     )
     style.map("Vertical.TScrollbar", background=[("active", CARD_HOVER)])
+
+    # ── Sidebar ─────────────────────────────────────────────────
+    style.configure(
+        "Sidebar.TButton",
+        background=SIDEBAR_BG,
+        foreground=SIDEBAR_TEXT,
+        padding=(16, 12),
+        font=(FONT_FAMILY, 10),
+        anchor="w",
+        borderwidth=0,
+    )
+    style.map(
+        "Sidebar.TButton",
+        background=[("active", SIDEBAR_HOVER)],
+    )
+
+    style.configure(
+        "SidebarActive.TButton",
+        background=SIDEBAR_ACTIVE,
+        foreground="#ffffff",
+        padding=(16, 12),
+        font=(FONT_FAMILY, 10, "bold"),
+        anchor="w",
+        borderwidth=0,
+    )
+    style.map(
+        "SidebarActive.TButton",
+        background=[("active", SIDEBAR_ACTIVE)],
+    )

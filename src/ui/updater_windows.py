@@ -88,6 +88,8 @@ class UpdaterWindow:
         self.window.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.status_var = tk.StringVar(value="Updater is stopped")
+        self._log_lines: list[str] = []
+        self._flush_scheduled = False
 
         root = ttk.Frame(self.window, padding=12)
         root.pack(fill="both", expand=True)
@@ -120,14 +122,29 @@ class UpdaterWindow:
         self.window.focus_force()
 
     def destroy(self) -> None:
+        if self._flush_scheduled:
+            self.window.after_cancel(self._flush_scheduled)  # type: ignore
+            self._flush_scheduled = False
+        if self._log_lines:
+            self._flush_log()
         if self.window.winfo_exists():
             self.window.destroy()
 
     MAX_LOG_LINES = 1000
 
     def append_log(self, text: str) -> None:
+        self._log_lines.append(text)
+        if not self._flush_scheduled:
+            self._flush_scheduled = self.window.after(100, self._flush_log)
+
+    def _flush_log(self) -> None:
+        self._flush_scheduled = False
+        if not self._log_lines:
+            return
         self.log_widget.configure(state="normal")
-        self.log_widget.insert("end", text + "\n")
+        batch = "\n".join(self._log_lines)
+        self._log_lines.clear()
+        self.log_widget.insert("end", batch + "\n")
         total = int(self.log_widget.index("end-1c").split(".")[0])
         if total > self.MAX_LOG_LINES:
             self.log_widget.delete("1.0", f"{total - self.MAX_LOG_LINES + 100}.0")

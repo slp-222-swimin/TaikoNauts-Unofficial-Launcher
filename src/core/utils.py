@@ -150,13 +150,15 @@ def load_launcher_state() -> dict:
         return {}
 
 
-def save_launcher_state(exe_path: str, geometry: str | None = None, launcher_version: str = "") -> None:
+def save_launcher_state(exe_path: str, geometry: str | None = None, launcher_version: str = "", zip_extract_path: str = "") -> None:
     state = load_launcher_state()
     state["exePath"] = exe_path
     if geometry is not None:
         state["geometry"] = geometry
     if launcher_version:
         state["launcherVersion"] = launcher_version
+    if zip_extract_path:
+        state["zipExtractPath"] = zip_extract_path
     try:
         safe_write_json(STATE_FILE, state)
     except Exception:
@@ -221,16 +223,15 @@ def parse_prompt_options(text: str) -> list[str]:
     return []
 
 
-def extract_zip_to_songs(exe_path: Path, zip_path: Path) -> Path:
+def extract_zip_to_songs(exe_path: Path, zip_path: Path, target_rel: str = "Songs\\zip") -> Path:
     game_root = resolve_game_root(exe_path)
-    songs_root = game_root / "Songs"
-    songs_root.mkdir(parents=True, exist_ok=True)
-
-    target_dir = songs_root / "zip"
+    target_dir = (game_root / target_rel).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
+    target_root = target_dir
 
-    box_def = target_dir / "box.def"
-    if not box_def.exists():
+    has_box_def = any(child.name.lower() == "box.def" for child in target_dir.iterdir())
+    if not has_box_def:
+        box_def = target_dir / "box.def"
         box_def.write_text("#TITLE:解凍した譜面\n", encoding="utf-8", newline="\n")
 
     with zipfile.ZipFile(zip_path, "r") as archive:
@@ -239,7 +240,7 @@ def extract_zip_to_songs(exe_path: Path, zip_path: Path) -> Path:
                 (target_dir / member.filename).mkdir(parents=True, exist_ok=True)
                 continue
             extracted = (target_dir / member.filename).resolve()
-            if target_dir.resolve() not in extracted.parents and extracted != target_dir.resolve():
+            if target_root not in extracted.parents and extracted != target_root:
                 raise ValueError(f"Unsafe path in zip: {member.filename}")
             extracted.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(member, "r") as src, extracted.open("wb") as dst:
@@ -280,9 +281,9 @@ def select_payload_root(extracted_root):
         return dirs[0]
     return extracted_root
 
-def clear_zip_folder_keep_box_def(exe_path: Path) -> Path:
+def clear_zip_folder_keep_box_def(exe_path: Path, target_rel: str = "Songs\\zip") -> Path:
     game_root = resolve_game_root(exe_path)
-    target_dir = game_root / "Songs" / "zip"
+    target_dir = (game_root / target_rel).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
 
     box_def = target_dir / "box.def"

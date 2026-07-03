@@ -1,0 +1,228 @@
+﻿{
+  "fullscreen": false,
+  "resolution": "1280x720",
+  "targetFPS": 120,
+  "vSync": false,
+  "audioMode": "DirectSound",
+  "audioBufferSize": 50,
+  "audioDevice": -1,
+  "asioDeviceName": "",
+  "masterVolume": 100,
+  "seVolume": 100,
+  "musicVolume": 100,
+  "bgmVolume": 100,
+  "voiceVolume": 100,
+  "overallSoundOffset": 0,
+  "overallNotePositionOffset": 0,
+  "inputDelay": 0,
+  "useBackgroundMovie": true,
+  "backgroundMovieOpacity": 1,
+  "backgroundMovieType": "None",
+  "backgroundMovieBlurAmount": 0,
+  "preloadFonts": true,
+  "useDonchan": true,
+  "showFPS": true,
+  "includeGaidenInDanAssignmentFolder": false,
+  "clearNewSongOnPlay": false,
+  "animationStopInEnsoGame": false,
+  "showJudgeFrameAfterimage": false,
+  "useNewResultAnimation": false,
+  "donLeft1P": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "F",
+      "button": "Unknown"
+    }
+  ],
+  "donRight1P": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "J",
+      "button": "Unknown"
+    }
+  ],
+  "kaLeft1P": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "D",
+      "button": "Unknown"
+    }
+  ],
+  "kaRight1P": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "K",
+      "button": "Unknown"
+    }
+  ],
+  "donLeft2P": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "C",
+      "button": "Unknown"
+    }
+  ],
+  "donRight2P": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "N",
+      "button": "Unknown"
+    }
+  ],
+  "kaLeft2P": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "X",
+      "button": "Unknown"
+    }
+  ],
+  "kaRight2P": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "M",
+      "button": "Unknown"
+    }
+  ],
+  "setFavoriteKeys": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "F8",
+      "button": "Unknown"
+    }
+  ],
+  "setMouseModeKeys": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "F9",
+      "button": "Unknown"
+    }
+  ],
+  "quickRetryKey": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "F2",
+      "button": "Unknown"
+    }
+  ],
+  "quickBackKey": [
+    {
+      "deviceName": "",
+      "type": "Keyboard",
+      "key": "F3",
+      "button": "Unknown"
+    }
+  ],
+  "activeKeyInputPresetName": "デフォルト",
+  "keyInputPresets": [
+    {
+      "name": "デフォルト",
+      "donLeft1P": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "F",
+          "button": "Unknown"
+        }
+      ],
+      "donRight1P": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "J",
+          "button": "Unknown"
+        }
+      ],
+      "kaLeft1P": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "D",
+          "button": "Unknown"
+        }
+      ],
+      "kaRight1P": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "K",
+          "button": "Unknown"
+        }
+      ],
+      "donLeft2P": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "C",
+          "button": "Unknown"
+        }
+      ],
+      "donRight2P": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "N",
+          "button": "Unknown"
+        }
+      ],
+      "kaLeft2P": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "X",
+          "button": "Unknown"
+        }
+      ],
+      "kaRight2P": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "M",
+          "button": "Unknown"
+        }
+      ],
+      "setFavoriteKeys": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "F8",
+          "button": "Unknown"
+        }
+      ],
+      "setMouseModeKeys": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "F9",
+          "button": "Unknown"
+        }
+      ],
+      "quickRetryKey": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "F2",
+          "button": "Unknown"
+        }
+      ],
+      "quickBackKey": [
+        {
+          "deviceName": "",
+          "type": "Keyboard",
+          "key": "F3",
+          "button": "Unknown"
+        }
+      ]
+    }
+  ]
+}
