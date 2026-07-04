@@ -13,7 +13,7 @@ import zipfile
 from ctypes import wintypes
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 
 from src.core.utils import (
     APP_TITLE, APP_DIR, APP_VERSION, GITHUB_REPO_URL, GAME_BOOTSTRAP_URL,
@@ -23,11 +23,13 @@ from src.core.utils import (
     normalize_version_label,
     load_launcher_state, save_launcher_state,
     read_game_config, write_game_config,
+    read_system_config, write_system_config,
     discover_skins, resolve_game_root, resolve_skin_path,
     extract_zip_to_songs, extract_zip_archive, select_payload_root,
     clear_zip_folder_keep_box_def, safe_write_json,
 )
 from src.core.updater_session import UpdaterSession
+from src.ui.toast import show_toast, confirm_toast
 from src.native.win32 import (
     WM_DROPFILES, GWL_WNDPROC, CFUNCTYPE_WNDPROC,
     find_child_processes_by_name, kill_process,
@@ -253,14 +255,310 @@ class LauncherApp(tk.Tk):
         frame = tk.Frame(self._content, bg=CARD)
         self._tab_frames["config"] = frame
 
-        inner = tk.Frame(frame, bg=CARD)
-        inner.pack(fill="x", padx=CARD_PAD_X, pady=CARD_PAD_Y)
+        header = tk.Frame(frame, bg=CARD)
+        header.pack(fill="x", padx=CARD_PAD_X, pady=(CARD_PAD_Y, 0))
+        tk.Label(header, text="⚙  System Config", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(side="left")
+        ttk.Button(header, text="Save", style="Accent.TButton", command=self._save_system_config).pack(side="right")
+        ttk.Button(header, text="Reload", style="Ghost.TButton", command=self._load_system_config).pack(side="right", padx=(0, 8))
 
-        tk.Label(inner, text="⚙  Config", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(anchor="w")
-        tk.Label(
-            inner, text="Game and system settings editor coming soon.",
-            bg=CARD, fg=MUTED, font=FONT_BODY,
-        ).pack(anchor="w", pady=(CARD_INNER, 0))
+        canvas = tk.Canvas(frame, bg=CARD, highlightthickness=0, bd=0)
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+        scroll_inner = tk.Frame(canvas, bg=CARD)
+        scroll_inner.bind("<Configure>", lambda _: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scroll_inner, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True, padx=(CARD_PAD_X, 0), pady=(0, CARD_PAD_Y))
+
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _bound_to_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        def _unbound_from_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+
+        canvas.bind("<Enter>", _bound_to_mousewheel)
+        canvas.bind("<Leave>", _unbound_from_mousewheel)
+        scroll_inner.bind("<Enter>", _bound_to_mousewheel)
+        scroll_inner.bind("<Leave>", _unbound_from_mousewheel)
+
+        self._config_vars: dict[str, tk.StringVar | tk.BooleanVar] = {}
+        self._config_slider_vars: dict[str, tuple] = {}
+
+        # ── Display ─────────────────────────────────────────────
+        self._config_section_label(scroll_inner, "Display")
+
+        self._config_var("fullscreen", tk.BooleanVar(value=False))
+        self._config_checkbox(scroll_inner, "Fullscreen", "fullscreen")
+
+        self._config_var("vSync", tk.BooleanVar(value=False))
+        self._config_checkbox(scroll_inner, "V-Sync", "vSync")
+
+        self._config_var("showFPS", tk.BooleanVar(value=True))
+        self._config_checkbox(scroll_inner, "Show FPS", "showFPS")
+
+        self._config_var("useBackgroundMovie", tk.BooleanVar(value=True))
+        self._config_checkbox(scroll_inner, "Background Movie", "useBackgroundMovie")
+
+        self._config_var("resolution", tk.StringVar(value="1920x1080"))
+        self._config_resolution(scroll_inner)
+
+        self._config_var("targetFPS", tk.StringVar(value="0"))
+        self._config_slider(scroll_inner, "Target FPS (0=unlimited)", "targetFPS", 0, 240, resolution=1, no_limit=True)
+
+        self._config_var("backgroundMovieType", tk.StringVar(value="BlurWithMiniWindow"))
+        self._config_dropdown(scroll_inner, "Movie Type", "backgroundMovieType", ["None", "Blur", "BlurWithMiniWindow"])
+
+        self._config_var("backgroundMovieOpacity", tk.StringVar(value="1"))
+        self._config_slider(scroll_inner, "Movie Opacity", "backgroundMovieOpacity", 0.0, 1.0, resolution=0.01, decimals=4)
+
+        self._config_var("backgroundMovieBlurAmount", tk.StringVar(value="0"))
+        self._config_slider(scroll_inner, "Movie Blur Amount", "backgroundMovieBlurAmount", 0.0, 1.0, resolution=0.01, decimals=4)
+
+        # ── Audio ───────────────────────────────────────────────
+        self._config_section_label(scroll_inner, "Audio")
+
+        self._config_var("audioMode", tk.StringVar(value="WASAPIShared"))
+        self._config_dropdown(scroll_inner, "Audio Mode", "audioMode", ["DirectSound", "WASAPIShared", "WASAPIExclusive", "ASIO"])
+
+        self._config_var("audioBufferSize", tk.StringVar(value="5"))
+        self._config_slider(scroll_inner, "Audio Buffer Size", "audioBufferSize", 5, 200, resolution=1)
+
+        self._config_var("masterVolume", tk.StringVar(value="50"))
+        self._config_slider(scroll_inner, "Master Volume", "masterVolume", 0, 100, resolution=1)
+
+        self._config_var("seVolume", tk.StringVar(value="100"))
+        self._config_slider(scroll_inner, "SE Volume", "seVolume", 0, 100, resolution=1)
+
+        self._config_var("musicVolume", tk.StringVar(value="100"))
+        self._config_slider(scroll_inner, "Music Volume", "musicVolume", 0, 100, resolution=1)
+
+        self._config_var("bgmVolume", tk.StringVar(value="100"))
+        self._config_slider(scroll_inner, "BGM Volume", "bgmVolume", 0, 100, resolution=1)
+
+        self._config_var("voiceVolume", tk.StringVar(value="100"))
+        self._config_slider(scroll_inner, "Voice Volume", "voiceVolume", 0, 100, resolution=1)
+
+        self._config_var("overallSoundOffset", tk.StringVar(value="0"))
+        self._config_entry(scroll_inner, "Sound Offset (ms)", "overallSoundOffset")
+
+        self._config_var("overallNotePositionOffset", tk.StringVar(value="0"))
+        self._config_entry(scroll_inner, "Note Position Offset", "overallNotePositionOffset")
+
+        self._config_var("inputDelay", tk.StringVar(value="0"))
+        self._config_entry(scroll_inner, "Input Delay (ms)", "inputDelay")
+
+        # ── Gameplay ────────────────────────────────────────────
+        self._config_section_label(scroll_inner, "Gameplay")
+
+        self._config_var("preloadFonts", tk.BooleanVar(value=True))
+        self._config_checkbox(scroll_inner, "Preload Fonts", "preloadFonts")
+
+        self._config_var("useDonchan", tk.BooleanVar(value=True))
+        self._config_checkbox(scroll_inner, "Use Donchan", "useDonchan")
+
+        self._config_var("clearNewSongOnPlay", tk.BooleanVar(value=True))
+        self._config_checkbox(scroll_inner, "Clear New Song on Play", "clearNewSongOnPlay")
+
+        self._config_var("animationStopInEnsoGame", tk.BooleanVar(value=False))
+        self._config_checkbox(scroll_inner, "Stop Animation in Enso", "animationStopInEnsoGame")
+
+        self._config_var("showJudgeFrameAfterimage", tk.BooleanVar(value=False))
+        self._config_checkbox(scroll_inner, "Judge Frame Afterimage", "showJudgeFrameAfterimage")
+
+        self._config_var("useNewResultAnimation", tk.BooleanVar(value=False))
+        self._config_checkbox(scroll_inner, "New Result Animation", "useNewResultAnimation")
+
+        self._config_var("includeGaidenInDanAssignmentFolder", tk.BooleanVar(value=False))
+        self._config_checkbox(scroll_inner, "Include Gaiden in Dan", "includeGaidenInDanAssignmentFolder")
+
+        self._config_status_var = tk.StringVar(value="")
+        tk.Label(scroll_inner, textvariable=self._config_status_var, bg=CARD, fg=MUTED, font=FONT_SMALL).pack(anchor="w", pady=(12, 0))
+
+    def _config_var(self, key: str, var: tk.StringVar | tk.BooleanVar) -> None:
+        self._config_vars[key] = var
+
+    def _config_section_label(self, parent: tk.Frame, text: str) -> None:
+        tk.Label(parent, text=text, bg=CARD, fg=ACCENT, font=FONT_SECTION).pack(anchor="w", pady=(16, 4))
+
+    def _config_checkbox(self, parent: tk.Frame, label: str, key: str) -> None:
+        row = tk.Frame(parent, bg=CARD)
+        row.pack(fill="x", pady=2)
+        var = self._config_vars[key]
+        tk.Checkbutton(
+            row, variable=var, bg=CARD, fg=TEXT, selectcolor=PANEL,
+            activebackground=BG, activeforeground=TEXT, highlightthickness=0,
+        ).pack(side="left")
+        tk.Label(row, text=label, bg=CARD, fg=TEXT, font=FONT_BODY).pack(side="left", padx=(6, 0))
+
+    def _config_entry(self, parent: tk.Frame, label: str, key: str) -> None:
+        row = tk.Frame(parent, bg=CARD)
+        row.pack(fill="x", pady=2)
+        tk.Label(row, text=label, bg=CARD, fg=TEXT, font=FONT_BODY, width=28, anchor="w").pack(side="left")
+        var = self._config_vars[key]
+        ttk.Entry(row, textvariable=var, width=30).pack(side="left", padx=(8, 0))
+
+    def _config_dropdown(self, parent: tk.Frame, label: str, key: str, values: list[str]) -> None:
+        row = tk.Frame(parent, bg=CARD)
+        row.pack(fill="x", pady=2)
+        tk.Label(row, text=label, bg=CARD, fg=TEXT, font=FONT_BODY, width=28, anchor="w").pack(side="left")
+        var = self._config_vars[key]
+        cb = ttk.Combobox(row, textvariable=var, values=values, state="readonly", width=28)
+        cb.pack(side="left", padx=(8, 0))
+
+    def _config_slider(self, parent: tk.Frame, label: str, key: str, from_: float, to: float, resolution: float = 1, decimals: int = 0, no_limit: bool = False) -> None:
+        row = tk.Frame(parent, bg=CARD)
+        row.pack(fill="x", pady=2)
+        tk.Label(row, text=label, bg=CARD, fg=TEXT, font=FONT_BODY, width=28, anchor="w").pack(side="left")
+        var = self._config_vars[key]
+
+        canvas = tk.Canvas(row, bg=CARD, height=18, highlightthickness=0, bd=0)
+        canvas.pack(side="left", fill="x", expand=True, padx=(8, 8))
+
+        def _slider_value() -> float:
+            try:
+                return float(var.get())
+            except (ValueError, TypeError):
+                return from_
+
+        def _get_width() -> int:
+            return max(canvas.winfo_width(), 50)
+
+        def _draw(value: float) -> None:
+            canvas.delete("all")
+            cw = _get_width()
+            ch = 18
+            pct = max(0.0, min(1.0, (value - from_) / (to - from_)))
+            thumb_w = 16
+            tx = int((cw - thumb_w) * pct)
+            
+            canvas.create_rectangle(0, 0, cw, ch, fill="#1f2937", outline="", tags="track")
+            canvas.create_rectangle(tx, 0, tx + thumb_w, ch, fill=ACCENT, outline="", tags="thumb")
+            
+            text_val = f"{value:.{decimals}f}" if decimals > 0 else str(int(value))
+            canvas.create_text(cw / 2, ch / 2, text=text_val, fill=TEXT, font=(FONT_FAMILY, 10, "bold"), tags="text")
+
+        canvas.bind("<Configure>", lambda _: _draw(_slider_value()))
+
+        def _update_var(value: float) -> None:
+            if no_limit:
+                value = max(from_, value)
+            else:
+                value = max(from_, min(to, value))
+            if decimals > 0:
+                var.set(f"{value:.{decimals}f}")
+            else:
+                var.set(str(int(value)))
+            _draw(value)
+
+        def _on_press(event):
+            _on_drag(event)
+
+        def _on_drag(event):
+            cw = max(canvas.winfo_width(), 50)
+            pct = max(0.0, min(1.0, event.x / cw))
+            value = from_ + pct * (to - from_)
+            if resolution > 0:
+                value = round(value / resolution) * resolution
+            _update_var(value)
+
+        canvas.bind("<Button-1>", _on_press)
+        canvas.bind("<B1-Motion>", _on_drag)
+
+        self._config_slider_vars[key] = (_update_var, _draw)
+
+    def _config_resolution(self, parent: tk.Frame) -> None:
+        row = tk.Frame(parent, bg=CARD)
+        row.pack(fill="x", pady=2)
+        tk.Label(row, text="Resolution", bg=CARD, fg=TEXT, font=FONT_BODY, width=28, anchor="w").pack(side="left")
+        var = self._config_vars["resolution"]
+        resolutions = ["1024x600", "1280x720", "1366x768", "1600x900", "1920x1080", "Custom"]
+        cb = ttk.Combobox(row, textvariable=var, values=resolutions, width=28)
+        cb.pack(side="left", padx=(8, 0))
+
+        def _on_select(_event):
+            if var.get() != "Custom":
+                return
+            dialog = tk.Toplevel(self)
+            dialog.title("Custom Resolution")
+            dialog.geometry("300x120")
+            dialog.configure(bg=BG)
+            dialog.transient(self)
+            dialog.grab_set()
+            inner = ttk.Frame(dialog, padding=16)
+            inner.pack(fill="both", expand=True)
+            ttk.Label(inner, text="Width:").grid(row=0, column=0, sticky="w", pady=4)
+            w_var = tk.StringVar(value="1920")
+            ttk.Entry(inner, textvariable=w_var, width=10).grid(row=0, column=1, pady=4)
+            ttk.Label(inner, text="Height:").grid(row=1, column=0, sticky="w", pady=4)
+            h_var = tk.StringVar(value="1080")
+            ttk.Entry(inner, textvariable=h_var, width=10).grid(row=1, column=1, pady=4)
+
+            def _confirm():
+                try:
+                    w = int(w_var.get())
+                    h = int(h_var.get())
+                    if w > 0 and h > 0:
+                        var.set(f"{w}x{h}")
+                        dialog.destroy()
+                except ValueError:
+                    pass
+
+            ttk.Button(inner, text="OK", style="Accent.TButton", command=_confirm).grid(row=2, column=1, sticky="e", pady=(12, 0))
+
+        cb.bind("<<ComboboxSelected>>", _on_select)
+
+    def _load_system_config(self, silent: bool = False) -> None:
+        try:
+            exe_path = self.get_exe_path()
+        except (ValueError, FileNotFoundError):
+            self._config_status_var.set("Select game folder first")
+            return
+        config = read_system_config(exe_path)
+        for key, var in self._config_vars.items():
+            val = config.get(key)
+            if val is None:
+                continue
+            if isinstance(var, tk.BooleanVar):
+                var.set(bool(val))
+            else:
+                var.set(str(val))
+            if key in self._config_slider_vars:
+                try:
+                    self._config_slider_vars[key][0](float(val))
+                except (ValueError, TypeError):
+                    pass
+        self._config_status_var.set("Loaded")
+        if not silent:
+            show_toast(self, "Config loaded", "SystemConfig.json reloaded", "info")
+
+    def _save_system_config(self) -> None:
+        try:
+            exe_path = self.get_exe_path()
+        except (ValueError, FileNotFoundError):
+            self._config_status_var.set("Select game folder first")
+            return
+        config = read_system_config(exe_path)
+        for key, var in self._config_vars.items():
+            if isinstance(var, tk.BooleanVar):
+                config[key] = var.get()
+            else:
+                raw = var.get().strip()
+                try:
+                    config[key] = int(raw)
+                except ValueError:
+                    try:
+                        config[key] = float(raw)
+                    except ValueError:
+                        config[key] = raw
+        try:
+            write_system_config(exe_path, config)
+            self._config_status_var.set("Saved")
+            show_toast(self, "Config saved", "SystemConfig.json written", "success")
+        except Exception as exc:
+            self._config_status_var.set(f"Save failed: {exc}")
 
     # ── Event Queue ─────────────────────────────────────────────
 
@@ -329,7 +627,8 @@ class LauncherApp(tk.Tk):
                 p = p.parent
             self.exe_path_var.set(str(p))
             self.current_root_var.set(f"Game root: {p.resolve()}")
-            self.refresh_all()
+            self.refresh_all(silent=True)
+            self.after(100, lambda: self._load_system_config(silent=True))
 
         self.launcher_version = str(state.get("launcherVersion") or "")
         saved_zip = state.get("zipExtractPath")
@@ -490,7 +789,7 @@ class LauncherApp(tk.Tk):
             self._updater_btn.config(text="⬆  Launch Updater", command=self.start_updater)
             self.start_updater()
         except Exception as exc:
-            messagebox.showerror("Install error", str(exc))
+            show_toast(self, "Install error", str(exc), "error")
             self.status_var.set("Install failed")
 
     def _browse_zip_extract(self) -> None:
@@ -599,9 +898,9 @@ class LauncherApp(tk.Tk):
                     target = extract_zip_to_songs(exe_path, path, self.zip_extract_var.get())
                     self.skin_message_var.set(f"Extracted {path.name} -> {target}")
                     self.zip_status_var.set(f"Extracted {path.name}")
-                    messagebox.showinfo("Done", f"Extracted:\n{path.name}\n->\n{target}")
+                    show_toast(self, "Done", f"Extracted:\n{path.name}\n->\n{target}", "success")
                 except Exception as exc:
-                    messagebox.showerror("ZIP extract error", f"{path}\n\n{exc}")
+                    show_toast(self, "ZIP extract error", f"{path}\n\n{exc}", "error")
         finally:
             shell32.DragFinish(hdrop)
 
@@ -609,12 +908,13 @@ class LauncherApp(tk.Tk):
         try:
             exe_path = self.get_exe_path()
         except Exception as exc:
-            messagebox.showerror("ZIP folder", str(exc))
+            show_toast(self, "ZIP folder", str(exc), "error")
             return
 
         game_root = resolve_game_root(exe_path)
         target_dir = game_root / self.zip_extract_var.get()
-        if not messagebox.askyesno(
+        if not confirm_toast(
+            self,
             "Confirm cleanup",
             f"Delete everything in this folder except box.def?\n\n{target_dir}",
         ):
@@ -623,9 +923,9 @@ class LauncherApp(tk.Tk):
         try:
             target = clear_zip_folder_keep_box_def(exe_path, self.zip_extract_var.get())
             self.zip_status_var.set(f"Cleared {target}")
-            messagebox.showinfo("Done", f"Cleared extracted folder:\n{target}")
+            show_toast(self, "Done", f"Cleared extracted folder:\n{target}", "success", key="clear-zip")
         except Exception as exc:
-            messagebox.showerror("ZIP folder cleanup error", str(exc))
+            show_toast(self, "ZIP folder cleanup error", str(exc), "error", key="clear-zip")
 
     # ── Game Actions ────────────────────────────────────────────
 
@@ -655,9 +955,9 @@ class LauncherApp(tk.Tk):
             raise FileNotFoundError(f"Game executable not found: {exe_path}")
         return exe_path
 
-    def refresh_all(self) -> None:
+    def refresh_all(self, silent: bool = False) -> None:
         try:
-            self.refresh_skins()
+            self.refresh_skins(silent=silent)
             raw = self.exe_path_var.get().strip()
             if raw and Path(raw).exists():
                 self.current_root_var.set(f"Game root: {Path(raw).resolve()}")
@@ -665,10 +965,12 @@ class LauncherApp(tk.Tk):
                 self.current_root_var.set("Game root not selected")
             self.status_var.set("Ready")
             self._update_updater_btn()
+            if not silent:
+                show_toast(self, "Refreshed", "Game info and skins reloaded", "success")
         except Exception as exc:
-            messagebox.showerror("Refresh error", str(exc))
+            show_toast(self, "Refresh error", str(exc), "error")
 
-    def refresh_skins(self) -> None:
+    def refresh_skins(self, silent: bool = False) -> None:
         try:
             exe_path = self.get_exe_path()
         except (ValueError, FileNotFoundError):
@@ -711,6 +1013,8 @@ class LauncherApp(tk.Tk):
         else:
             self.skin_message_var.set(f"Loaded {len(self.skins)} skins")
             self.skin_count_var.set(f"{len(self.skins)} skins")
+            if not silent:
+                show_toast(self, "Skins reloaded", f"{len(self.skins)} skins found", "success")
 
     def _on_skin_select(self, _event=None) -> None:
         selection = self.skin_tree.selection()
@@ -724,22 +1028,22 @@ class LauncherApp(tk.Tk):
         try:
             exe_path = self.get_exe_path()
         except (ValueError, FileNotFoundError) as exc:
-            messagebox.showerror("Error", str(exc))
+            show_toast(self, "Error", str(exc), "error")
             return
         selection = self.skin_tree.selection()
         if not selection:
-            messagebox.showwarning("No selection", "Select a skin first")
+            show_toast(self, "No selection", "Select a skin first", "warning")
             return
         skin = self.skin_map.get(selection[0])
         if not skin:
-            messagebox.showerror("Error", "Selected skin not found")
+            show_toast(self, "Error", "Selected skin not found", "error")
             return
 
         config = read_game_config(exe_path)
         config["skinPath"] = skin.skin_path_value
         write_game_config(exe_path, config)
         self.skin_message_var.set(f"skinPath updated: {skin.skin_path_value}")
-        messagebox.showinfo("Done", f"skinPath updated:\n{skin.skin_path_value}")
+        show_toast(self, "Done", f"skinPath updated:\n{skin.skin_path_value}", "success")
 
     def launch_game(self) -> None:
         try:
@@ -748,7 +1052,7 @@ class LauncherApp(tk.Tk):
             subprocess.Popen([str(exe_path)], cwd=str(exe_path.parent))
             self.status_var.set("Game launched")
         except Exception as exc:
-            messagebox.showerror("Launch error", str(exc))
+            show_toast(self, "Launch error", str(exc), "error")
 
     def start_updater(self) -> None:
         try:
@@ -767,7 +1071,7 @@ class LauncherApp(tk.Tk):
             save_launcher_state(str(raw))
             if self.updater_session and self.updater_session.process and self.updater_session.process.poll() is None:
                 self._ensure_updater_window()
-                messagebox.showinfo("Updater", "Updater is already running")
+                show_toast(self, "Updater", "Updater is already running", "warning")
                 return
 
             self._ensure_updater_window()
@@ -781,7 +1085,7 @@ class LauncherApp(tk.Tk):
             self.updater_session.start()
             self._queue_log("[launcher] updater started")
         except Exception as exc:
-            messagebox.showerror("Updater error", str(exc))
+            show_toast(self, "Updater error", str(exc), "error")
 
 
     def stop_updater(self) -> None:

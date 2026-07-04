@@ -179,6 +179,27 @@ def write_game_config(exe_path: Path, config: dict) -> None:
     safe_write_json(config_path, config)
 
 
+SYSTEM_CONFIG_RELATIVE = Path("Config") / "SystemConfig.json"
+
+
+def resolve_system_config(exe_path: Path) -> Path:
+    return resolve_game_root(exe_path) / SYSTEM_CONFIG_RELATIVE
+
+
+def read_system_config(exe_path: Path) -> dict:
+    config_path = resolve_system_config(exe_path)
+    if not config_path.exists():
+        return {}
+    return safe_read_json(config_path)
+
+
+def write_system_config(exe_path: Path, config: dict) -> None:
+    config_path = resolve_system_config(exe_path)
+    if not config_path.parent.exists():
+        raise FileNotFoundError(f"Config folder not found: {config_path.parent}")
+    safe_write_json(config_path, config)
+
+
 def discover_skins(exe_path: Path) -> list[SkinInfo]:
     game_root = resolve_game_root(exe_path)
     skins_root = game_root / SKINS_DIR_NAME

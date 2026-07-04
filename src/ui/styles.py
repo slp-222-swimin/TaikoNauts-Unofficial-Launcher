@@ -127,6 +127,28 @@ def setup_styles(root: tk.Tk) -> None:
     )
     style.map("TEntry", fieldbackground=[("focus", PANEL)])
 
+    # ── Combobox ────────────────────────────────────────────────
+    style.configure(
+        "TCombobox",
+        fieldbackground=BG_ELEVATED,
+        foreground=TEXT,
+        arrowcolor=ACCENT,
+        selectbackground=ACCENT_SOFT,
+        selectforeground="#ffffff",
+        padding=(8, 6),
+    )
+    style.map(
+        "TCombobox",
+        fieldbackground=[("readonly", BG_ELEVATED), ("focus", PANEL)],
+        foreground=[("readonly", TEXT)],
+    )
+
+    root.option_add("*TCombobox*Listbox.background", BG_ELEVATED)
+    root.option_add("*TCombobox*Listbox.foreground", TEXT)
+    root.option_add("*TCombobox*Listbox.selectBackground", ACCENT_SOFT)
+    root.option_add("*TCombobox*Listbox.selectForeground", "#ffffff")
+    root.option_add("*TCombobox*Listbox.font", FONT_BODY)
+
     # ── LabelFrame (Card) ──────────────────────────────────────
     style.configure(
         "TLabelframe",
@@ -241,4 +263,15 @@ def setup_styles(root: tk.Tk) -> None:
     style.map(
         "SidebarActive.TButton",
         background=[("active", SIDEBAR_ACTIVE)],
+    )
+
+    # ── Scale ───────────────────────────────────────────────────
+    style.configure(
+        "TScale",
+        background=CARD,
+        troughcolor=ACCENT,
+        darkcolor="#0d1117",
+        lightcolor="#21262d",
+        bordercolor=BORDER,
+        sliderlength=18,
     )
