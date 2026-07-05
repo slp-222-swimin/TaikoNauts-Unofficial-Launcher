@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>譜面インポート - TaikøNauts UNOFFL Launcher マニュアル</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <style>
+    html, body {
+      background-color: #0d1117;
+    }
+  </style>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-title">🎮 TaikoNauts Launcher</span>
+        <span class="brand-subtitle">Unofficial Management Tool</span>
+      </div>
+      <ul class="nav-menu">
+        <li class="nav-item"><a href="index.html">🏠 ホーム / 概要</a></li>
+        <li class="nav-item"><a href="game.html">🎮 ゲーム起動・更新</a></li>
+        <li class="nav-item"><a href="skins.html">🎨 スキン管理</a></li>
+        <li class="nav-item active"><a href="songs.html">📦 譜面インポート</a></li>
+        <li class="nav-item"><a href="config.html">⚙️ システム設定</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <span>Launcher Version: v1.2.1</span>
+        <a href="https://github.com/slp-222-swimin/TaikoNauts-Unofficial-Launcher" target="_blank">GitHub Repository</a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content fade-in">
+      <h1>📦 譜面ZIPのインポート</h1>
+      <p>
+        「ZIP Import」タブでは、譜面のZIPファイルをランチャー上にドラッグ＆ドロップして指定フォルダに解凍・展開することができます。
+      </p>
+
+      <h2>📥 譜面のインポート手順</h2>
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-title">展開先フォルダの設定</div>
+          <p>
+            「Extract to:」欄に、ゲームフォルダからの相対パス（デフォルト: <code>Songs\zip</code>）を指定します。変更する場合は「Browse...」ボタンを使用します。
+          </p>
+        </li>
+        <li class="step-item">
+          <div class="step-title">ファイルのドラッグ＆ドロップ</div>
+          <p>
+            対象の <code>.zip</code> ファイルを、画面下部の「⬇ Drop ZIP files here」領域にドラッグ＆ドロップします。
+          </p>
+        </li>
+        <li class="step-item">
+          <div class="step-title">インポート完了</div>
+          <p>
+            解凍が自動的に行われ、完了すると結果とログが出力されます。
+          </p>
+        </li>
+      </ul>
+
+      <h2>🧠 box.def 自動生成仕様</h2>
+      <p>
+        本ランチャーは、選曲画面でのフォルダ分けに必要な定義ファイル <code>box.def</code> を必要に応じて自動生成します。
+      </p>
+      <div class="callout callout-info">
+        <div class="callout-title">ℹ️ box.def の生成</div>
+        <p>
+          展開先のフォルダに <code>box.def</code> が存在しない場合、以下の定義内容で自動生成されます。
+        </p>
+        <pre><code>#TITLE:解凍した譜面</code></pre>
+        <p>これにより、ゲーム内では「解凍した譜面」フォルダとして認識されます。</p>
+      </div>
+
+      <h2>🧹 展開フォルダのクリーンアップ</h2>
+      <p>
+        「Clear extracted folder」ボタンにより、展開先フォルダの内容を削除できます。
+      </p>
+      <div class="callout callout-warning">
+        <div class="callout-title">⚠️ クリーンアップ実行時の挙動</div>
+        <p>確認ポップアップに承諾すると、展開先フォルダ（例: <code>Songs/zip</code>）内のファイルが削除されます。</p>
+        <p>
+          ただし、自動認識用の <strong><code>box.def</code> ファイルのみ削除対象外として保護され、維持されます</strong>。
+        </p>
+      </div>
+
+      <h2>🛡 セキュリティ対策</h2>
+      <p>
+        ZIPファイルの解凍時には「Zip Slip」対策として、展開先ファイルパスが指定のルートディレクトリ配下にあるかを検証し、ルート外を指定する不正パスを検知した場合は展開を遮断（<code>ValueError</code>）します。
+      </p>
+    </main>
+  </div>
+</body>
+</html>

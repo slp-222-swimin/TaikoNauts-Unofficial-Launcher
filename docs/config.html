@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>システム設定 - TaikøNauts UNOFFL Launcher マニュアル</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <style>
+    html, body {
+      background-color: #0d1117;
+    }
+  </style>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-title">🎮 TaikoNauts Launcher</span>
+        <span class="brand-subtitle">Unofficial Management Tool</span>
+      </div>
+      <ul class="nav-menu">
+        <li class="nav-item"><a href="index.html">🏠 ホーム / 概要</a></li>
+        <li class="nav-item"><a href="game.html">🎮 ゲーム起動・更新</a></li>
+        <li class="nav-item"><a href="skins.html">🎨 スキン管理</a></li>
+        <li class="nav-item"><a href="songs.html">📦 譜面インポート</a></li>
+        <li class="nav-item active"><a href="config.html">⚙️ システム設定</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <span>Launcher Version: v1.2.1</span>
+        <a href="https://github.com/slp-222-swimin/TaikoNauts-Unofficial-Launcher" target="_blank">GitHub Repository</a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content fade-in">
+      <h1>⚙️ システム詳細設定 (System Config)</h1>
+      <p>
+        「Config」タブでは、ゲーム設定ファイル（<code>Config/SystemConfig.json</code>）の内容をGUIから編集し、反映・保存します。
+      </p>
+
+      <div class="callout callout-info">
+        <div class="callout-title">💾 保存と再読み込み</div>
+        <p><strong>Save（保存）:</strong> 設定項目を変更した後、画面右上の「Save」ボタンをクリックすることで、設定ファイルへ書き込まれます。</p>
+        <p><strong>Reload（再読み込み）:</strong> 「Reload」ボタンをクリックすると、設定ファイルから現在の値を再読み込みして表示を更新します。</p>
+      </div>
+
+      <h2>📺 画面表示設定 (Display)</h2>
+      <p>解像度、フレームレート、および背景動画の挙動を調整します。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>項目名 (UI)</th>
+            <th>JSONキー</th>
+            <th>コントロール形式</th>
+            <th>詳細説明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Fullscreen</strong></td>
+            <td><code>fullscreen</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>フルスクリーン表示の有無を設定します。</td>
+          </tr>
+          <tr>
+            <td><strong>V-Sync</strong></td>
+            <td><code>vSync</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>垂直同期の有効/無効を設定します。</td>
+          </tr>
+          <tr>
+            <td><strong>Show FPS</strong></td>
+            <td><code>showFPS</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>ゲーム中に現在のフレームレート(FPS)を画面上に表示します。</td>
+          </tr>
+          <tr>
+            <td><strong>Background Movie</strong></td>
+            <td><code>useBackgroundMovie</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>演奏画面等の背景で動画を再生するかを指定します。</td>
+          </tr>
+          <tr>
+            <td><strong>Resolution</strong></td>
+            <td><code>resolution</code></td>
+            <td>Dropdown / Pop-up</td>
+            <td>
+              解像度を設定します。プリセット値のほか、「Custom」を選択すると幅と高さを数値で直接指定するダイアログが開きます。
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Target FPS</strong></td>
+            <td><code>targetFPS</code></td>
+            <td>Slider (0〜240)</td>
+            <td>最大フレームレートを制限します。<code>0</code> 指定時は無制限となります。</td>
+          </tr>
+          <tr>
+            <td><strong>Movie Type</strong></td>
+            <td><code>backgroundMovieType</code></td>
+            <td>Dropdown</td>
+            <td>背景動画のブレンドモードを指定します（<code>None</code> / <code>Blur</code> / <code>BlurWithMiniWindow</code>）。</td>
+          </tr>
+          <tr>
+            <td><strong>Movie Opacity</strong></td>
+            <td><code>backgroundMovieOpacity</code></td>
+            <td>Slider (0.00〜1.00)</td>
+            <td>背景動画の不透明度を設定します。</td>
+          </tr>
+          <tr>
+            <td><strong>Movie Blur Amount</strong></td>
+            <td><code>backgroundMovieBlurAmount</code></td>
+            <td>Slider (0.00〜1.00)</td>
+            <td>背景動画のぼかし（Blur）量を設定します。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>🎵 オーディオ設定 (Audio)</h2>
+      <p>音声出力APIや各種音量、オフセットを定義します。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>項目名 (UI)</th>
+            <th>JSONキー</th>
+            <th>コントロール形式</th>
+            <th>詳細説明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Audio Mode</strong></td>
+            <td><code>audioMode</code></td>
+            <td>Dropdown</td>
+            <td>
+              音声の出力先APIを選択します（<code>DirectSound</code> / <code>WASAPIShared</code> / <code>WASAPIExclusive</code> / <code>ASIO</code>）。
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Audio Buffer Size</strong></td>
+            <td><code>audioBufferSize</code></td>
+            <td>Slider (5〜200)</td>
+            <td>オーディオのバッファサイズ（ミリ秒）です。数値を下げるほど遅延は減少しますが、環境によっては音割れの原因となります。</td>
+          </tr>
+          <tr>
+            <td><strong>Master Volume</strong></td>
+            <td><code>masterVolume</code></td>
+            <td>Slider (0〜100)</td>
+            <td>ゲーム全体の主音量を調整します。</td>
+          </tr>
+          <tr>
+            <td><strong>SE Volume</strong></td>
+            <td><code>seVolume</code></td>
+            <td>Slider (0〜100)</td>
+            <td>打鍵音などの効果音音量です。</td>
+          </tr>
+          <tr>
+            <td><strong>Music Volume</strong></td>
+            <td><code>musicVolume</code></td>
+            <td>Slider (0〜100)</td>
+            <td>演奏する曲の音量です。</td>
+          </tr>
+          <tr>
+            <td><strong>BGM Volume</strong></td>
+            <td><code>bgmVolume</code></td>
+            <td>Slider (0〜100)</td>
+            <td>選曲メニュー画面などで流れるBGMの音量です。</td>
+          </tr>
+          <tr>
+            <td><strong>Voice Volume</strong></td>
+            <td><code>voiceVolume</code></td>
+            <td>Slider (0〜100)</td>
+            <td>キャラクターボイスの音量です。</td>
+          </tr>
+          <tr>
+            <td><strong>Sound Offset</strong></td>
+            <td><code>overallSoundOffset</code></td>
+            <td>Numeric Entry (ms)</td>
+            <td>音ズレ全体の調整値（ミリ秒単位）です。</td>
+          </tr>
+          <tr>
+            <td><strong>Note Position Offset</strong></td>
+            <td><code>overallNotePositionOffset</code></td>
+            <td>Numeric Entry</td>
+            <td>ノーツが流れる描画位置のオフセット設定です。</td>
+          </tr>
+          <tr>
+            <td><strong>Input Delay</strong></td>
+            <td><code>inputDelay</code></td>
+            <td>Numeric Entry (ms)</td>
+            <td>キー入力等の入力信号に対する遅延オフセット値（ミリ秒単位）です。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>🎮 ゲームプレイ設定 (Gameplay)</h2>
+      <p>ゲーム内のシステムルールや各種演出設定を調整します。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>項目名 (UI)</th>
+            <th>JSONキー</th>
+            <th>コントロール形式</th>
+            <th>詳細説明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Preload Fonts</strong></td>
+            <td><code>preloadFonts</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>起動時にすべてのフォントデータをキャッシュし、演奏開始時の遅延を防止します。</td>
+          </tr>
+          <tr>
+            <td><strong>Use Donchan</strong></td>
+            <td><code>useDonchan</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>演奏画面等のどんちゃん表示の有無を設定します。</td>
+          </tr>
+          <tr>
+            <td><strong>Clear New Song on Play</strong></td>
+            <td><code>clearNewSongOnPlay</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>一度でも楽曲をプレイした際、選曲画面の「NEW」マークを自動的に消去します。</td>
+          </tr>
+          <tr>
+            <td><strong>Stop Animation in Enso</strong></td>
+            <td><code>animationStopInEnsoGame</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>演奏中に各種アニメーションを停止し、動作負荷を低減します。</td>
+          </tr>
+          <tr>
+            <td><strong>Judge Frame Afterimage</strong></td>
+            <td><code>showJudgeFrameAfterimage</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>判定枠の残像エフェクト表示の有無を設定します。</td>
+          </tr>
+          <tr>
+            <td><strong>New Result Animation</strong></td>
+            <td><code>useNewResultAnimation</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>リザルト画面に新しいアニメーション演出を使用するか設定します。</td>
+          </tr>
+          <tr>
+            <td><strong>Include Gaiden in Dan</strong></td>
+            <td><code>includeGaidenInDanAssignmentFolder</code></td>
+            <td>Checkbox (ON/OFF)</td>
+            <td>段位道場のフォルダ構成に、外伝のお題を含めるかを設定します。</td>
+          </tr>
+        </tbody>
+      </table>
+    </main>
+  </div>
+</body>
+</html>

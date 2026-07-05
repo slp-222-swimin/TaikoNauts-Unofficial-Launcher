@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スキン管理 - TaikøNauts UNOFFL Launcher マニュアル</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <style>
+    html, body {
+      background-color: #0d1117;
+    }
+  </style>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-title">🎮 TaikoNauts Launcher</span>
+        <span class="brand-subtitle">Unofficial Management Tool</span>
+      </div>
+      <ul class="nav-menu">
+        <li class="nav-item"><a href="index.html">🏠 ホーム / 概要</a></li>
+        <li class="nav-item"><a href="game.html">🎮 ゲーム起動・更新</a></li>
+        <li class="nav-item active"><a href="skins.html">🎨 スキン管理</a></li>
+        <li class="nav-item"><a href="songs.html">📦 譜面インポート</a></li>
+        <li class="nav-item"><a href="config.html">⚙️ システム設定</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <span>Launcher Version: v1.2.1</span>
+        <a href="https://github.com/slp-222-swimin/TaikoNauts-Unofficial-Launcher" target="_blank">GitHub Repository</a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content fade-in">
+      <h1>🎨 スキンの切り替え・適用</h1>
+      <p>
+        「Skins」タブでは、ゲームフォルダ内のスキンフォルダを検出し、ゲーム設定へ適用します。
+      </p>
+
+      <h2>🔍 スキンの自動検出仕様</h2>
+      <p>
+        ランチャーは、ゲームフォルダ直下の <code>Skins/</code> ディレクトリ配下をスキャンします。
+      </p>
+      <div class="card">
+        <div class="card-title">📂 フォルダ構造</div>
+        <p>
+          各スキンフォルダの中に <code>SkinConfig.json</code> が配置されている必要があります。
+        </p>
+        <p>ランチャーはこれを再帰的に検索し、設定されているスキン情報をリストに取得します。</p>
+      </div>
+
+      <h3>SkinConfig.json から読み込まれるパラメータ</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>JSONキー</th>
+            <th>説明</th>
+            <th>未設定時の挙動</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>skinName</code></td>
+            <td>スキンの表示名</td>
+            <td>フォルダ名がそのまま表示名になります。</td>
+          </tr>
+          <tr>
+            <td><code>skinVersion</code></td>
+            <td>スキンのバージョン</td>
+            <td>空欄になります。</td>
+          </tr>
+          <tr>
+            <td><code>skinDescription</code></td>
+            <td>スキンの説明文</td>
+            <td>空欄になります。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>🚀 スキンの適用方法</h2>
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-title">リストからスキンを選択</div>
+          <p>リストから任意のスキンを選択します。選択されたスキンの情報は、「Name」「Version」「SkinPath」「Description」の項目で一覧表示されます。</p>
+        </li>
+        <li class="step-item">
+          <div class="step-title">設定の更新</div>
+          <p>「Apply selected skin」ボタンをクリックします。完了時に通知が表示されます。</p>
+        </li>
+      </ul>
+
+      <div class="callout callout-success">
+        <div class="callout-title">💡 適用プロセスの詳細</div>
+        <p>
+          スキンが適用されると、ゲームフォルダ内の <code>Config/GameConfig.json</code> にある <code>skinPath</code> の値が、選択したスキンの相対パス（例: <code>Skins/SkinFolderName</code>）に更新されます。
+        </p>
+        <p>また、ランチャー起動時や「Reload skins」クリック時には、現在 <code>Config/GameConfig.json</code> に指定されているスキンが自動的にリスト上で選択されます。</p>
+      </div>
+
+      <h2>🔄 スキンの手動更新 (Reload)</h2>
+      <p>
+        <code>Skins/</code> フォルダの内容を手動で変更した場合は、「Reload skins」ボタンをクリックすることで、一覧を最新の状態に更新できます。
+      </p>
+    </main>
+  </div>
+</body>
+</html>

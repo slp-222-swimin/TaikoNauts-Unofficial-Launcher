@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>概要 - TaikøNauts UNOFFL Launcher マニュアル</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <style>
+    html, body {
+      background-color: #0d1117;
+    }
+  </style>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-title">🎮 TaikoNauts Launcher</span>
+        <span class="brand-subtitle">Unofficial Management Tool</span>
+      </div>
+      <ul class="nav-menu">
+        <li class="nav-item active"><a href="index.html">🏠 ホーム / 概要</a></li>
+        <li class="nav-item"><a href="game.html">🎮 ゲーム起動・更新</a></li>
+        <li class="nav-item"><a href="skins.html">🎨 スキン管理</a></li>
+        <li class="nav-item"><a href="songs.html">📦 譜面インポート</a></li>
+        <li class="nav-item"><a href="config.html">⚙️ システム設定</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <span>Launcher Version: v1.2.1</span>
+        <a href="https://github.com/slp-222-swimin/TaikoNauts-Unofficial-Launcher" target="_blank">GitHub Repository</a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content fade-in">
+      <h1>TaikøNauts UNOFFL Launcher 仕様書</h1>
+      <p>
+        本ツールは、ゲームの起動、アップデーターの制御、スキン切り替え、および譜面ZIPファイルの自動インポートを行うWindows向けのランチャーです。
+      </p>
+
+      <div class="callout callout-info">
+        <div class="callout-title">ℹ️ 概要</div>
+        <p>Python 3.10 以上で動作し、標準ライブラリおよび Windows API を用いて以下の管理機能を提供します。</p>
+      </div>
+
+      <h2>🚀 提供機能</h2>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-title">🎮 ゲーム起動・インストール</div>
+          <p><code>TaikoNauts.exe</code> を起動します。未インストール時は、指定URLからファイルをダウンロードして導入します。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">🔄 アップデート管理</div>
+          <p><code>TaikoNautsUpdater.exe</code> をコンソール上で実行・監視し、プロンプトへの自動応答を行います。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">🎨 スキン切り替え</div>
+          <p>ゲームフォルダ内の <code>Skins/</code> からスキン設定を自動検出し、一覧表示。ワンクリックで <code>GameConfig.json</code> に適用します。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">📦 譜面ZIP簡単インポート</div>
+          <p>譜面の <code>.zip</code> ファイルを画面にドラッグ＆ドロップするだけで、<code>Songs/zip</code> へ自動で安全に展開します。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">⚙️ システム詳細設定</div>
+          <p>ゲーム内の詳細な環境設定ファイル <code>SystemConfig.json</code> を、GUI上のグラフィカルなコントローラーから一括編集・保存できます。</p>
+        </div>
+      </div>
+
+      <h2>💻 動作環境</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>項目</th>
+            <th>要件</th>
+            <th>備考</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>対応OS</strong></td>
+            <td>Windows 10 / 11</td>
+            <td>Windows API (Windows API フックなど) を使用しているため、Windows専用です。</td>
+          </tr>
+          <tr>
+            <td><strong>Python環境</strong></td>
+            <td>Python 3.10 以上</td>
+            <td>ビルド前のソースコードから直接実行する場合に必要です。</td>
+          </tr>
+          <tr>
+            <td><strong>追加パッケージ</strong></td>
+            <td>不要</td>
+            <td>標準ライブラリおよび Windows API のみで動作するように設計されています。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>🏁 クイックスタート</h2>
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-title">ゲームフォルダの設定</div>
+          <p>「Game」タブにて、<code>TaikoNauts.exe</code> が配置されているフォルダを「Browse...」ボタンから選択します。設定は <code>launcher_state.json</code> に自動で保存されます。</p>
+        </li>
+        <li class="step-item">
+          <div class="step-title">ゲームのインストール（未所持の場合）</div>
+          <p>フォルダを選択した際、対象フォルダ内に <code>TaikoNauts.exe</code> が見つからない場合は、ボタンが「Install Game」に切り替わります。これをクリックすると、最新ビルドが自動ダウンロードされます。</p>
+        </li>
+        <li class="step-item">
+          <div class="step-title">ゲームの起動と設定</div>
+          <p>「Launch Game」をクリックしてゲームを起動するか、各タブでスキンや譜面、システム詳細設定をカスタマイズしてください。</p>
+        </li>
+      </ul>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ゲーム起動・更新 - TaikøNauts UNOFFL Launcher マニュアル</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <style>
+    html, body {
+      background-color: #0d1117;
+    }
+  </style>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-title">🎮 TaikoNauts Launcher</span>
+        <span class="brand-subtitle">Unofficial Management Tool</span>
+      </div>
+      <ul class="nav-menu">
+        <li class="nav-item"><a href="index.html">🏠 ホーム / 概要</a></li>
+        <li class="nav-item active"><a href="game.html">🎮 ゲーム起動・更新</a></li>
+        <li class="nav-item"><a href="skins.html">🎨 スキン管理</a></li>
+        <li class="nav-item"><a href="songs.html">📦 譜面インポート</a></li>
+        <li class="nav-item"><a href="config.html">⚙️ システム設定</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <span>Launcher Version: v1.2.1</span>
+        <a href="https://github.com/slp-222-swimin/TaikoNauts-Unofficial-Launcher" target="_blank">GitHub Repository</a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content fade-in">
+      <h1>🎮 ゲームの起動とインストール・更新</h1>
+      <p>
+        「Game」タブでは、ゲームの起動、新規インストール、およびアップデーターの実行制御を行います。
+      </p>
+
+      <h2>▶️ ゲームの起動 (Launch Game)</h2>
+      <p>
+        「▶ Launch Game」ボタンを押すと、バックグラウンドで <code>TaikoNauts.exe</code> が起動します。
+      </p>
+
+      <h2>📥 自動ゲームインストール機能</h2>
+      <p>
+        設定したゲームフォルダに <code>TaikoNauts.exe</code> が存在しない場合、ボタン表示が「⬇ Install Game」に変更されます。
+      </p>
+      <div class="card">
+        <div class="card-title">📦 インストールの流れ</div>
+        <p>1. 「⬇ Install Game」をクリックすると、ゲームの最小構成（アップデーター本体を含む bootstrap ZIP）を指定フォルダにダウンロード・解凍します。</p>
+        <p>2. 展開後、ランチャーは自動的にこのアップデーター（<code>TaikoNautsUpdater.exe</code>）を起動します。</p>
+        <p>3. 起動したアップデーターが実行されることで、ゲーム本体のファイル群がダウンロードおよびインストールされます。</p>
+      </div>
+
+      <h2>🔄 アップデーターの連携・制御 (Launch Updater)</h2>
+      <p>
+        「⬆ Launch Updater」ボタンをクリックすると、同梱されているアップデーター <code>TaikoNautsUpdater.exe</code> を非同期プロセスとして実行し、出力をログ監視します。
+      </p>
+
+      <h3>1. 事前設定 (Updater Configuration)</h3>
+      <p>
+        アップデーター起動時に設定ダイアログが開き、以下の対話プロンプトに対する自動応答ルールを指定できます。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>設定オプション</th>
+            <th>デフォルト値</th>
+            <th>説明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Overwrite existing "TaikoNauts.exe"</strong></td>
+            <td><code>ON</code> (True)</td>
+            <td><code>TaikoNauts.exe</code> を上書きするか尋ねられた際、自動で <code>y</code> (Yes) または <code>n</code> (No) と応答します。</td>
+          </tr>
+          <tr>
+            <td><strong>Overwrite "SimpleStyle" skin files</strong></td>
+            <td><code>ON</code> (True)</td>
+            <td>標準スキンファイルを上書きするか尋ねられた際、自動で <code>y</code> (Yes) または <code>n</code> (No) と応答します。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>2. ログコンソール機能</h3>
+      <p>
+        アップデーターのコンソール出力を読み込み、ランチャー内のリストボックスへ出力します。
+      </p>
+      <ul>
+        <li><strong>自動スクロール:</strong> ログが出力されると、自動で最下部までスクロールします。</li>
+        <li><strong>行数制限:</strong> ログバッファは最大 1,000 行に制限されており、これを超えると古いログが自動削除されます。</li>
+        <li><strong>停止機能 (Stop):</strong> アップデーターのプロセスを途中で終了（Terminate）させます。</li>
+      </ul>
+
+      <div class="callout callout-warning">
+        <div class="callout-title">⚠️ アップデート時の注意点</div>
+        <p>アップデーターは処理が終了した際、自動でゲーム本体を起動することがあります。ランチャーはこれを防ぎ、安全にアップデートプロセスを終了させるため、アップデーター終了後の20秒間バックグラウンドでゲーム本体の起動を監視し、自動起動したゲームプロセスを検知した場合は直ちに停止（Kill）させる保護機能（<code>_watch_and_kill_game_launch</code>）を実装しています。</p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
