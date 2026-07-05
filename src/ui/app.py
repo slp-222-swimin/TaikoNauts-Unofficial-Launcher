@@ -46,9 +46,7 @@ from src.ui.styles import (
     setup_styles,
 )
 from src.ui.splash import SplashScreen
-from src.ui.updater_windows import (
-    UpdaterConfigWindow, UpdaterWindow, UpdateDownloadWindow,
-)
+from src.ui.updater_windows import UpdaterConfigWindow, UpdaterWindow, UpdateDownloadWindow
 
 if os.name == "nt":
     from src.native.win32 import shell32, user32
@@ -477,16 +475,25 @@ class LauncherApp(tk.Tk):
         resolutions = ["1024x600", "1280x720", "1366x768", "1600x900", "1920x1080", "Custom"]
         cb = ttk.Combobox(row, textvariable=var, values=resolutions, width=28)
         cb.pack(side="left", padx=(8, 0))
+        self._resolution_prev = var.get()
 
         def _on_select(_event):
             if var.get() != "Custom":
+                self._resolution_prev = var.get()
                 return
             dialog = tk.Toplevel(self)
             dialog.title("Custom Resolution")
-            dialog.geometry("300x120")
+            dialog.geometry("300x150")
             dialog.configure(bg=BG)
             dialog.transient(self)
             dialog.grab_set()
+
+            def _reset() -> None:
+                var.set(self._resolution_prev)
+                dialog.destroy()
+
+            dialog.protocol("WM_DELETE_WINDOW", _reset)
+
             inner = ttk.Frame(dialog, padding=16)
             inner.pack(fill="both", expand=True)
             ttk.Label(inner, text="Width:").grid(row=0, column=0, sticky="w", pady=4)
@@ -506,7 +513,10 @@ class LauncherApp(tk.Tk):
                 except ValueError:
                     pass
 
-            ttk.Button(inner, text="OK", style="Accent.TButton", command=_confirm).grid(row=2, column=1, sticky="e", pady=(12, 0))
+            btn_row = tk.Frame(inner, bg=CARD)
+            btn_row.grid(row=2, column=0, columnspan=2, sticky="e", pady=(12, 0))
+            ttk.Button(btn_row, text="Cancel", style="Ghost.TButton", command=_reset).pack(side="right", padx=(6, 0))
+            ttk.Button(btn_row, text="OK", style="Accent.TButton", command=_confirm).pack(side="right")
 
         cb.bind("<<ComboboxSelected>>", _on_select)
 
@@ -540,7 +550,12 @@ class LauncherApp(tk.Tk):
         except (ValueError, FileNotFoundError):
             self._config_status_var.set("Select game folder first")
             return
-        config = read_system_config(exe_path)
+        try:
+            config = read_system_config(exe_path)
+        except Exception as exc:
+            self._config_status_var.set(f"Read failed: {exc}")
+            show_toast(self, "Config read failed", str(exc), "error")
+            return
         for key, var in self._config_vars.items():
             if isinstance(var, tk.BooleanVar):
                 config[key] = var.get()
@@ -559,6 +574,7 @@ class LauncherApp(tk.Tk):
             show_toast(self, "Config saved", "SystemConfig.json written", "success")
         except Exception as exc:
             self._config_status_var.set(f"Save failed: {exc}")
+            show_toast(self, "Save failed", str(exc), "error")
 
     # ── Event Queue ─────────────────────────────────────────────
 
@@ -583,16 +599,13 @@ class LauncherApp(tk.Tk):
             child_pids = find_child_processes_by_name(updater_pid, WINDOWS_GAME_EXE_NAME)
             if child_pids:
                 for pid in child_pids:
-                    if kill_process(pid):
-                        self._queue_log(f"[launcher] killed {WINDOWS_GAME_EXE_NAME} pid={pid}")
-                    else:
-                        self._queue_log(f"[launcher] failed to kill {WINDOWS_GAME_EXE_NAME} pid={pid}")
+                    kill_process(pid)
                 return
             time.sleep(0.2)
 
     def _drain_events(self) -> None:
         try:
-            for _ in range(50):
+            while True:
                 kind, payload, extra = self.events.get_nowait()
                 if kind == "log":
                     if self.updater_window:
@@ -607,7 +620,7 @@ class LauncherApp(tk.Tk):
                             self.updater_window = None
         except queue.Empty:
             pass
-        self.after(100, self._drain_events)
+        self.after(200, self._drain_events)
 
     def _ensure_updater_window(self) -> None:
         if self.updater_window and self.updater_window.window.winfo_exists():
@@ -1086,7 +1099,6 @@ class LauncherApp(tk.Tk):
             self._queue_log("[launcher] updater started")
         except Exception as exc:
             show_toast(self, "Updater error", str(exc), "error")
-
 
     def stop_updater(self) -> None:
         if self.updater_session:

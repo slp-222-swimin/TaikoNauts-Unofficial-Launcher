@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import tempfile
 import threading
+import time
 from pathlib import Path
 
 
@@ -14,9 +16,10 @@ class UpdaterSession:
         self.on_state = on_state
         self.on_exit = on_exit
         self.config = config or {}
-        self.process: subprocess.Popen[str] | None = None
+        self.process: subprocess.Popen[bytes] | None = None
         self._alive = False
         self._stop_requested = False
+        self._out_file: tempfile.NamedTemporaryFile | None = None
 
     def start(self) -> None:
         if self.process and self.process.poll() is None:
@@ -26,41 +29,65 @@ class UpdaterSession:
         if not updater_path.exists():
             raise FileNotFoundError(f"Updater not found: {updater_path}")
 
+        self._out_file = tempfile.NamedTemporaryFile(
+            mode="wb", delete=False, suffix=".log", prefix="updater_",
+        )
         creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         self.process = subprocess.Popen(
             [str(updater_path)],
             cwd=str(self.exe_path.parent),
             stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
+            stdout=self._out_file,
             stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            bufsize=1,
             creationflags=creationflags,
         )
+        self._out_file.close()
         self._alive = True
         self.on_state(True)
-        threading.Thread(target=self._reader_loop, daemon=True).start()
+        threading.Thread(target=self._poll_loop, daemon=True).start()
 
-    def _reader_loop(self) -> None:
+    def _poll_loop(self) -> None:
         assert self.process is not None
-        stdout = self.process.stdout
-        if stdout is None:
-            self.on_state(False)
-            return
+        out_path = Path(self._out_file.name) if self._out_file else None
+        last_pos = 0
 
-        for line in stdout:
-            if not self._alive:
+        while self._alive:
+            time.sleep(0.2)  # 5 FPS
+            if not self._alive or not out_path or not out_path.exists():
                 break
-            stripped = line.rstrip("\n")
-            self.on_log(stripped)
-            self._auto_answer(stripped)
+            try:
+                with out_path.open("rb") as f:
+                    f.seek(last_pos)
+                    data = f.read()
+                    last_pos = f.tell()
+                if data:
+                    text = data.decode("utf-8", errors="replace")
+                    for line in text.splitlines():
+                        self._auto_answer(line)
+                    self.on_log(text)
+            except (OSError, PermissionError):
+                pass
+
+        # process exited
+        if out_path and out_path.exists():
+            try:
+                with out_path.open("rb") as f:
+                    remaining = f.read()
+                if remaining:
+                    text = remaining.decode("utf-8", errors="replace")
+                    self.on_log(text)
+            except (OSError, PermissionError):
+                pass
 
         return_code = self.process.wait()
-        self.on_log(f"[process exited] code={return_code}")
+        self.on_log(f"[process exited] code={return_code}\n")
         self._alive = False
         self.on_state(False)
+        if out_path and out_path.exists():
+            try:
+                out_path.unlink()
+            except OSError:
+                pass
         if self.on_exit:
             self.on_exit(return_code, self.process.pid if self.process else -1, self._stop_requested)
 
@@ -77,7 +104,6 @@ class UpdaterSession:
             answer = "y"
         try:
             self.send(answer)
-            self.on_log(f"> {answer}")
         except Exception:
             pass
 
@@ -86,7 +112,7 @@ class UpdaterSession:
             raise RuntimeError("Updater is not running")
         if self.process.stdin is None:
             raise RuntimeError("Updater stdin is unavailable")
-        self.process.stdin.write(text + "\n")
+        self.process.stdin.write((text + "\n").encode("utf-8"))
         self.process.stdin.flush()
 
     def stop(self) -> None:

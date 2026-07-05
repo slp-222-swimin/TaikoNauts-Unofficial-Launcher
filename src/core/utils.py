@@ -195,8 +195,7 @@ def read_system_config(exe_path: Path) -> dict:
 
 def write_system_config(exe_path: Path, config: dict) -> None:
     config_path = resolve_system_config(exe_path)
-    if not config_path.parent.exists():
-        raise FileNotFoundError(f"Config folder not found: {config_path.parent}")
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     safe_write_json(config_path, config)
 
 
