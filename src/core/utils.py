@@ -22,7 +22,7 @@ SKINS_DIR_NAME = "Skins"
 WINDOWS_GAME_EXE_NAME = "TaikoNauts.exe"
 PROCESS_KILL_TIMEOUT_SEC = 20.0
 
-APP_VERSION = "v1.2.0"
+APP_VERSION = "v1.2.1"
 GITHUB_REPO_URL = "https://github.com/slp-222-swimin/TaikoNauts-Unofficial-Launcher"
 GAME_BOOTSTRAP_URL = "https://pub-137e553b50604fb28196265eadbc30a2.r2.dev/bootstrap/TaikoNauts-latest.zip"
 
