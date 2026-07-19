@@ -32,8 +32,6 @@ from src.core.updater_session import UpdaterSession
 from src.ui.toast import show_toast, confirm_toast
 from src.native.win32 import (
     WM_DROPFILES, GWL_WNDPROC, CFUNCTYPE_WNDPROC,
-    IMAGE_ICON, LR_LOADFROMFILE, LR_DEFAULTSIZE,
-    WM_SETICON, ICON_SMALL, ICON_BIG,
     find_child_processes_by_name, kill_process,
 )
 from src.ui.styles import (
@@ -84,7 +82,6 @@ class LauncherApp(tk.Tk):
         self._sidebar_btns: dict[str, ttk.Button] = {}
 
         setup_styles(self)
-        self._set_app_icon()
         self._build_ui()
         self._enable_file_drop()
         self._load_saved_state()
@@ -92,28 +89,6 @@ class LauncherApp(tk.Tk):
         self.withdraw()
         self.after(100, self._drain_events)
         self.after(200, self._update_updater_btn)
-
-    def _set_app_icon(self) -> None:
-        ico = APP_DIR / "app.ico"
-        if not ico.exists():
-            return
-        if os.name != "nt":
-            try:
-                self.iconbitmap(str(ico))
-            except tk.TclError:
-                pass
-            return
-        try:
-            hicon = user32.LoadImageW(
-                None, str(ico), IMAGE_ICON, 0, 0,
-                LR_LOADFROMFILE | LR_DEFAULTSIZE,
-            )
-            if hicon:
-                hwnd = wintypes.HWND(self.winfo_id())
-                user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, hicon)
-                user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, hicon)
-        except Exception:
-            pass
 
     # ── UI Construction ─────────────────────────────────────────
 

@@ -60,20 +60,6 @@ if os.name == "nt":
     user32.SetWindowLongPtrW.restype = ctypes.c_void_p
     user32.CallWindowProcW.argtypes = [ctypes.c_void_p, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
     user32.CallWindowProcW.restype = ctypes.c_longlong
-    user32.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT, ctypes.c_int, ctypes.c_int, wintypes.UINT]
-    user32.LoadImageW.restype = wintypes.HANDLE
-    user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-    user32.SendMessageW.restype = ctypes.c_longlong
-    user32.DestroyIcon.argtypes = [wintypes.HANDLE]
-    user32.DestroyIcon.restype = wintypes.BOOL
-
-    IMAGE_ICON = 1
-    LR_LOADFROMFILE = 0x00000010
-    LR_DEFAULTSIZE = 0x00000040
-    WM_SETICON = 0x0080
-    ICON_SMALL = 0
-    ICON_BIG = 1
-    ICON_SMALL2 = 2
 
 
 def enumerate_processes() -> list[tuple[int, int, str]]:
