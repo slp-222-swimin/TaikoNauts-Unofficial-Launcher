@@ -11,10 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-PLAYER_DATA_DIR_NAME = "PlayerData"
-SKIN_NAMEPLATE_RELATIVE = Path("Image") / "99.Common" / "NamePlate"
-
-
 APP_TITLE = "TaikøNauts UNOFFL Launcher"
 if getattr(sys, "frozen", False):
     APP_DIR = Path(sys.executable).resolve().parent
@@ -283,73 +279,6 @@ def select_payload_root(extracted_root):
     if len(children) == 1 and len(dirs) == 1 and not files:
         return dirs[0]
     return extracted_root
-
-def resolve_player_data_root(exe_path: Path) -> Path:
-    return resolve_game_root(exe_path) / PLAYER_DATA_DIR_NAME
-
-
-def discover_player_data_indices(exe_path: Path) -> list[int]:
-    root = resolve_player_data_root(exe_path)
-    if not root.exists():
-        return []
-    indices: list[int] = []
-    for entry in root.iterdir():
-        if entry.is_dir() and entry.name.isdigit():
-            indices.append(int(entry.name))
-    indices.sort()
-    return indices
-
-
-def resolve_player_config_path(exe_path: Path, index: int) -> Path:
-    return resolve_player_data_root(exe_path) / str(index) / "PlayerConfig.json"
-
-
-def resolve_nameplate_config_path(exe_path: Path, index: int) -> Path:
-    return resolve_player_data_root(exe_path) / str(index) / "NamePlateConfig.json"
-
-
-def read_player_config(exe_path: Path, index: int) -> dict:
-    path = resolve_player_config_path(exe_path, index)
-    if not path.exists():
-        return {}
-    return safe_read_json(path)
-
-
-def write_player_config(exe_path: Path, index: int, data: dict) -> None:
-    path = resolve_player_config_path(exe_path, index)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    safe_write_json(path, data)
-
-
-def read_nameplate_config(exe_path: Path, index: int) -> dict:
-    path = resolve_nameplate_config_path(exe_path, index)
-    if not path.exists():
-        return {}
-    return safe_read_json(path)
-
-
-def write_nameplate_config(exe_path: Path, index: int, data: dict) -> None:
-    path = resolve_nameplate_config_path(exe_path, index)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    safe_write_json(path, data)
-
-
-def resolve_skin_nameplate_dir(skin_folder: Path) -> Path:
-    return skin_folder / SKIN_NAMEPLATE_RELATIVE
-
-
-def resolve_nameplate_base_path(skin_folder: Path) -> Path:
-    return resolve_skin_nameplate_dir(skin_folder) / "NamePlate_Base.png"
-
-
-def resolve_plate_image_path(skin_folder: Path, plate_type: int) -> Path:
-    return (
-        resolve_skin_nameplate_dir(skin_folder)
-        / "Plates"
-        / str(plate_type)
-        / "Base.png"
-    )
-
 
 def clear_zip_folder_keep_box_def(exe_path: Path) -> Path:
     game_root = resolve_game_root(exe_path)
