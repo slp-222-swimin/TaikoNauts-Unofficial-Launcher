@@ -47,6 +47,7 @@ from src.ui.styles import (
 )
 from src.ui.splash import SplashScreen
 from src.ui.updater_windows import UpdaterConfigWindow, UpdaterWindow, UpdateDownloadWindow
+from src.ui.management import ManagementWindow
 
 if os.name == "nt":
     from src.native.win32 import shell32, user32
@@ -104,7 +105,7 @@ class LauncherApp(tk.Tk):
         tabs = [
             ("game", "🎮", "Game"),
             ("skins", "🎨", "Skins"),
-            ("zip", "📦", "ZIP Import"),
+            ("mgmt", "📂", "Management"),
             ("config", "⚙", "Config"),
         ]
         for key, emoji, label in tabs:
@@ -137,7 +138,7 @@ class LauncherApp(tk.Tk):
         self._content = content
         self._build_tab_game()
         self._build_tab_skins()
-        self._build_tab_zip()
+        self._build_tab_mgmt()
         self._build_tab_config()
         self._switch_tab("game")
 
@@ -213,32 +214,49 @@ class LauncherApp(tk.Tk):
         self.skin_tree.pack(fill="both", expand=True)
         self.skin_tree.bind("<<TreeviewSelect>>", self._on_skin_select)
 
-    def _build_tab_zip(self) -> None:
+    def _build_tab_mgmt(self) -> None:
         frame = tk.Frame(self._content, bg=CARD)
-        self._tab_frames["zip"] = frame
+        self._tab_frames["mgmt"] = frame
 
         inner = tk.Frame(frame, bg=CARD)
-        inner.pack(fill="x", padx=CARD_PAD_X, pady=CARD_PAD_Y)
+        inner.pack(fill="both", expand=True, padx=CARD_PAD_X, pady=CARD_PAD_Y)
 
-        tk.Label(inner, text="📦  Beatmap Import", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(anchor="w")
+        tk.Label(inner, text="📂  Song / Dan Management", bg=CARD, fg=TEXT, font=FONT_HEADING).pack(anchor="w")
+        tk.Label(
+            inner, text="Browse songs, dan courses, and import beatmap files.",
+            bg=CARD, fg=MUTED, font=FONT_BODY,
+        ).pack(anchor="w", pady=(4, 0))
 
-        extract_row = ttk.Frame(inner)
-        extract_row.pack(fill="x", pady=(CARD_INNER, 0))
+        ttk.Button(
+            inner, text="📂  Open Management Window",
+            style="Accent.TButton",
+            command=self._open_management,
+        ).pack(anchor="w", pady=(CARD_INNER, 0))
+
+        quick_frame = tk.Frame(inner, bg=BG_ELEVATED, highlightthickness=1, highlightbackground=BORDER)
+        quick_frame.pack(fill="x", pady=(CARD_INNER, 0))
+
+        qf = tk.Frame(quick_frame, bg=BG_ELEVATED)
+        qf.pack(fill="x", padx=16, pady=12)
+        tk.Label(qf, text="Quick ZIP Import", bg=BG_ELEVATED, fg=TEXT, font=FONT_SECTION).pack(anchor="w")
+
+        extract_row = ttk.Frame(qf)
+        extract_row.pack(fill="x", pady=(8, 0))
         ttk.Label(extract_row, text="Extract to:", font=FONT_BODY).pack(side="left")
         ttk.Entry(extract_row, textvariable=self.zip_extract_var).pack(side="left", fill="x", expand=True, padx=(8, 0))
         ttk.Button(extract_row, text="Browse...", style="Ghost.TButton", command=lambda: self._browse_zip_extract()).pack(side="left", padx=(8, 0))
 
-        clear_row = ttk.Frame(inner)
+        clear_row = ttk.Frame(qf)
         clear_row.pack(fill="x", pady=(6, 0))
         ttk.Button(clear_row, text="Clear extracted folder", style="Ghost.TButton", command=self.clear_extracted_zip_folder).pack(side="left")
-        tk.Label(clear_row, textvariable=self.zip_status_var, bg=CARD, fg=ACCENT, font=FONT_SMALL).pack(side="left", padx=(12, 0))
+        tk.Label(clear_row, textvariable=self.zip_status_var, bg=BG_ELEVATED, fg=ACCENT, font=FONT_SMALL).pack(side="left", padx=(12, 0))
 
         self.zip_drop_zone = tk.Frame(
-            inner, bg=PANEL_ALT,
+            qf, bg=PANEL_ALT,
             highlightthickness=1, highlightbackground=ACCENT_SOFT,
             highlightcolor=ACCENT, bd=0,
         )
-        self.zip_drop_zone.pack(fill="x", pady=(CARD_INNER, 0))
+        self.zip_drop_zone.pack(fill="x", pady=(8, 0))
 
         drop_inner = tk.Frame(self.zip_drop_zone, bg=PANEL_ALT)
         drop_inner.pack(fill="x", padx=18, pady=18)
@@ -804,6 +822,15 @@ class LauncherApp(tk.Tk):
         except Exception as exc:
             show_toast(self, "Install error", str(exc), "error")
             self.status_var.set("Install failed")
+
+    def _open_management(self) -> None:
+        try:
+            exe_path = self.get_exe_path()
+        except (ValueError, FileNotFoundError) as exc:
+            messagebox.showwarning("Management", f"Please select game folder first.\n\n{exc}")
+            return
+        self._management_window = ManagementWindow(self, exe_path)
+        self._management_window.show()
 
     def _browse_zip_extract(self) -> None:
         try:
